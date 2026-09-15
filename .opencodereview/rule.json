@@ -1,0 +1,62 @@
+{
+  "include": [
+    "apps/**/*.{ts,tsx,js,jsx}",
+    "services/**/*.{ts,tsx,js,jsx,go,py}",
+    "packages/**/*.{ts,tsx,js,jsx,go,py,json,yaml,yml}",
+    "tooling/**/*.{ts,js,mjs,cjs,py,sh}",
+    ".github/workflows/**/*.{yaml,yml}"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.next/**",
+    "**/generated/**",
+    "**/*.snap",
+    "**/*.lock",
+    "**/fixtures/binary/**"
+  ],
+  "rules": [
+    {
+      "path": "packages/contracts/**/*",
+      "rule": "Treat this as a public compatibility boundary. Check backward compatibility, schema/version evolution, optional-vs-required fields, serialization stability, idempotency fields, UTC timestamp semantics, and accidental leakage of secrets or provider-specific implementation details. Flag breaking changes without an explicit migration/versioning strategy."
+    },
+    {
+      "path": "packages/events/**/*",
+      "rule": "Review event contracts as append-only audit/analytics data. Check stable event names and versions, correlation IDs, tenant/workspace scoping, timestamp semantics, PII/secrets leakage, replay safety, duplicate handling, and whether downstream consumers can evolve independently."
+    },
+    {
+      "path": "services/orchestrator/**/*",
+      "rule": "Focus on durable workflow correctness: deterministic state transitions, retries/backoff, idempotency, cancellation, concurrency, race conditions, timeouts, partial failure, duplicate delivery, recovery after process crash, and separation between deterministic control logic and non-deterministic AI reasoning."
+    },
+    {
+      "path": "services/publisher/**/*",
+      "rule": "Focus on external side effects and multi-network publishing: idempotency keys, duplicate publish prevention, rate limits, remote status reconciliation, auth/token handling, scheduling/time zones, retry classification, partial success, platform-specific policy isolation, and canonical-contract-to-adapter translation."
+    },
+    {
+      "path": "services/ai-gateway/**/*",
+      "rule": "Focus on provider isolation, prompt/tool injection boundaries, model/tool authorization, timeout/retry/circuit-breaker behavior, token/cost controls, redaction, structured output validation, deterministic fallbacks, observability, and prevention of provider-specific types leaking into domain code."
+    },
+    {
+      "path": "services/media-worker/**/*",
+      "rule": "Focus on untrusted media/file handling, command injection, path traversal, temporary-file cleanup, resource limits, cancellation, deterministic outputs, codec/tool failures, GPU/CPU exhaustion, resumability and artifact integrity."
+    },
+    {
+      "path": "packages/adapters/**/*",
+      "rule": "Check that adapters remain replaceable and do not contaminate the core. Verify canonical input/output translation, capability detection, error normalization, retryability classification, version pinning assumptions and contract tests for each external system."
+    },
+    {
+      "path": "apps/web/**/*",
+      "rule": "Focus on tenant isolation, authorization, unsafe client trust, XSS/CSRF, upload safety, optimistic update consistency, accessibility, performance regressions and clear handling of long-running asynchronous workflow states."
+    },
+    {
+      "path": "infra/**/*",
+      "rule": "Treat infrastructure as security-sensitive. Check least privilege, secret exposure, public ingress, network boundaries, persistence/backups, rollout/rollback safety, image/version pinning, resource limits, observability and disaster recovery assumptions."
+    },
+    {
+      "path": ".github/workflows/**/*.{yaml,yml}",
+      "rule": "Review CI/CD for supply-chain security and correctness: pin third-party actions where practical, minimize permissions, protect secrets on forked PRs, avoid executing untrusted PR code with privileged tokens, use concurrency intentionally, cache safely, and keep quality/security gates reproducible."
+    }
+  ]
+}
