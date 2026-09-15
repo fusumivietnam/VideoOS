@@ -85,7 +85,7 @@ jobs:
 
       - name: Run OpenCodeReview
         if: env.OCR_LLM_URL != '' && env.OCR_LLM_AUTH_TOKEN != '' && env.OCR_LLM_MODEL != ''
-        uses: alibaba/open-code-review@main
+        uses: alibaba/open-code-review@6734a44dbedd6391484dad01a1b79881f25b7af0
         with:
           llm_url: ${{ secrets.OCR_LLM_URL }}
           llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
