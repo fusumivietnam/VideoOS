@@ -23,8 +23,28 @@
       "rule": "Treat this as a public compatibility boundary. Check backward compatibility, schema/version evolution, optional-vs-required fields, serialization stability, idempotency fields, UTC timestamp semantics, and accidental leakage of secrets or provider-specific implementation details. Flag breaking changes without an explicit migration/versioning strategy."
     },
     {
-      "path": "packages/events/**/*",
-      "rule": "Review event contracts as append-only audit/analytics data. Check stable event names and versions, correlation IDs, tenant/workspace scoping, timestamp semantics, PII/secrets leakage, replay safety, duplicate handling, and whether downstream consumers can evolve independently."
+      "path": "packages/event-fabric/**/*",
+      "rule": "Focus on event delivery correctness: at-least-once semantics, duplicate handling, ordering assumptions, transactional outbox safety, correlation/project scoping, replayability, poison events, backpressure, and provider-neutral boundaries."
+    },
+    {
+      "path": "packages/job-queue/**/*",
+      "rule": "Focus on durable queue semantics: lease ownership and expiry, retry/backoff, dead-letter handling, idempotent enqueue, clock/time comparisons, crash recovery, duplicate workers, starvation and provider-neutral behavior."
+    },
+    {
+      "path": "packages/storage/**/*",
+      "rule": "Treat storage as a trust boundary. Check project isolation, path/key traversal, untrusted file metadata, checksum/integrity handling, signed URL scope/expiry, deletion semantics, overwrite behavior and provider neutrality."
+    },
+    {
+      "path": "packages/identity/**/*",
+      "rule": "Treat authorization as correctness-critical. Check deny-by-default behavior, project/tenant isolation, capability escalation, role mutation, confused-deputy risks, service/node principals, missing membership checks and authorization decisions made from untrusted client input."
+    },
+    {
+      "path": "packages/node-protocol/**/*",
+      "rule": "Review local-node protocol as a remote execution security boundary. Check node authentication, project scoping, capability negotiation, lease ownership/expiry, replay attacks, task/result correlation, untrusted editor commands, version compatibility and secret exposure."
+    },
+    {
+      "path": "services/api/**/*",
+      "rule": "Focus on request authorization and orchestration boundaries: authenticate principals, authorize every project-scoped operation, validate resource ownership, avoid direct provider side effects, make enqueue/idempotency behavior explicit, normalize errors and never trust client-supplied project/resource relationships."
     },
     {
       "path": "services/orchestrator/**/*",
@@ -41,6 +61,10 @@
     {
       "path": "services/media-worker/**/*",
       "rule": "Focus on untrusted media/file handling, command injection, path traversal, temporary-file cleanup, resource limits, cancellation, deterministic outputs, codec/tool failures, GPU/CPU exhaustion, resumability and artifact integrity."
+    },
+    {
+      "path": "services/analytics/**/*",
+      "rule": "Review analytics ingestion for project scoping, event validation, PII/secrets minimization, duplicate/replay handling, stable schemas, cardinality/cost risks, retention assumptions and separation from transactional source-of-truth state."
     },
     {
       "path": "packages/adapters/**/*",
