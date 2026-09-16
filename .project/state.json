@@ -5,8 +5,8 @@
   "milestoneName": "Media production path",
   "status": "active",
   "currentFocus": [
-    "VID-7 probe/metadata extraction and derived-asset lineage",
-    "add object-store staging/persistence for deterministic FFmpeg outputs",
+    "VID-8 reusable media presets and safe subtitle asset staging",
+    "prepare optional local-node execution for heavy/GPU media workloads after preset/staging behavior is stable",
     "VID-5 bootstrap the Understand Anything derived graph locally without blocking runtime work"
   ],
   "completedMilestones": ["M0", "M1", "M2"],
@@ -22,10 +22,11 @@
     "PostgreSQL 18-compatible local Compose persistence",
     "durable runtime liveness and migration-aware readiness",
     "PostgreSQL plus filesystem/S3-compatible backup and recovery guidance",
-    "sandboxed deterministic FFmpeg execution foundation with bounded process/resource behavior"
+    "sandboxed deterministic FFmpeg execution foundation with bounded process/resource behavior",
+    "bounded ffprobe normalization and idempotent derived-asset persistence with source/job/transform/executor lineage"
   ],
   "blockers": [],
-  "nextTasks": ["VID-7", "VID-5"],
+  "nextTasks": ["VID-8", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
