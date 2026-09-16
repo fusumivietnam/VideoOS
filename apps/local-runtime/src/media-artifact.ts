@@ -196,6 +196,10 @@ export class DerivedAssetFinalizer implements MediaArtifactFinalizer {
       ...metadataToRecord(media),
     };
     if (input.executorVersion) metadata.lineageExecutorVersion = input.executorVersion;
+    if (input.transform.preset) {
+      metadata.lineagePresetId = input.transform.preset.id;
+      metadata.lineagePresetVersion = input.transform.preset.version;
+    }
 
     const asset: AssetRecord = {
       id: input.result.assetId,
@@ -249,6 +253,7 @@ export function normalizeFfprobeOutput(raw: unknown): NormalizedMediaMetadata {
 
 export function canonicalTransformJson(transform: Omit<MediaTransformRequest, 'sourceAssetId'>): string {
   return JSON.stringify({
+    preset: transform.preset,
     operations: transform.operations,
     output: transform.output,
   });
