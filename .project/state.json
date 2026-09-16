@@ -5,10 +5,10 @@
   "milestoneName": "Multi-network publishing",
   "status": "active",
   "currentFocus": [
-    "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; the remaining external launch gate is explicit real YouTube private-upload/reconciliation verification",
-    "VID-14 bootstrap the dependency-light read-only web launch control plane for a controlled alpha surface",
-    "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision",
-    "VID-5 bootstrap the Understand Anything derived graph locally without blocking launch/runtime work"
+    "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
+    "controlled alpha packaging is complete; use pnpm alpha:up for localhost/private operator access only",
+    "next implementation priority is the minimum authenticated product surface required for non-operator users, not additional infrastructure breadth",
+    "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
   "completedCapabilities": [
@@ -28,12 +28,15 @@
     "retry-safe YouTube publishing adapter with trusted object-store asset loading, resumable upload, durable attempt journaling, normalized receipts, and exact reconciliation",
     "server-side YouTube OAuth onboarding/refresh lifecycle with explicit opt-in live smoke tooling and bounded secret-safe diagnostics",
     "explicit project-authorized publish approval with audit-preserved internal job payload plus pre-enqueue asset and schedule validation",
-    "repository-owned controlled launch readiness command and runbook"
+    "repository-owned controlled launch readiness command and runbook",
+    "dependency-free read-only web launch cockpit deriving readiness only from canonical repository state",
+    "localhost-only non-root read-only controlled-alpha container packaging with simple operator lifecycle commands"
   ],
   "blockers": [
-    "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified"
+    "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
+    "public/non-operator exposure requires an authenticated product surface; the current alpha cockpit must remain localhost/private"
   ],
-  "nextTasks": ["VID-12", "VID-14", "VID-5"],
+  "nextTasks": ["VID-12", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
