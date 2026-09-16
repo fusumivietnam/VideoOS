@@ -8,6 +8,7 @@ import {
   PostgresJsonStore,
   PostgresMembershipRepository,
   PostgresOutboxEventBus,
+  PostgresQueueSettlement,
 } from '../../../packages/adapters/persistence-postgres/src/index.js';
 import type { MediaExecutor } from '../../../services/media-worker/src/index.js';
 import type { NetworkPublisherAdapter } from '../../../services/publisher/src/index.js';
@@ -35,6 +36,7 @@ export function createPostgresRuntime(options: PostgresRuntimeOptions) {
     mediaExecutor: options.mediaExecutor,
     publisherAdapters: options.publisherAdapters,
     publisherIdempotency: new PostgresJsonStore<PublishReceipt[]>(pool, 'publisher-idempotency'),
+    queueSettlement: new PostgresQueueSettlement(pool),
     workerId: options.workerId ?? 'postgres-runtime',
   });
 

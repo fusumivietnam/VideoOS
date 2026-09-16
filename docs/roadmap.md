@@ -2,7 +2,7 @@
 
 Current status: 2026-09-16
 
-This roadmap keeps the ponytail core small while turning the current architecture skeleton into an executable, observable media control plane. Each milestone should leave the repository in a runnable state and should avoid adding infrastructure or GitHub Actions workflows before the preceding vertical slice is proven.
+This roadmap keeps the ponytail core small while turning the architecture into an executable, observable media control plane. Each milestone should leave the repository runnable and should avoid adding infrastructure or GitHub Actions workflows before a real execution path needs them.
 
 ## Delivery policy
 
@@ -12,6 +12,7 @@ This roadmap keeps the ponytail core small while turning the current architectur
 - Prefer local/free development paths first; managed services are substitutions behind ports.
 - Add infrastructure only when a real execution path needs it.
 - Every external side effect must be idempotent and observable.
+- Git/docs/backlog/specs are canonical engineering state; chat context and generated knowledge graphs are caches/read models, not sources of truth.
 
 ## M0 — Executable foundation — complete
 
@@ -25,7 +26,7 @@ Delivered:
 - Agent engineering instructions and reusable skills for adding services/adapters and release review.
 - OpenCodeReview integration retained but paused/manual-only.
 
-Exit condition: architecture compiles and the core module boundaries are enforceable.
+Exit condition met: architecture compiles and core module boundaries are enforceable.
 
 ## M1 — Executable vertical slice — complete
 
@@ -47,7 +48,7 @@ Exit condition met: commands enter through the API facade, execute through queue
 
 ## M2 — Durable local-first backbone — active
 
-Goal: replace only the persistence points required by the M1 vertical slice while preserving all public contracts.
+Goal: replace only the persistence points required by the M1 vertical slice while preserving public contracts and restart safety.
 
 Progress:
 
@@ -55,12 +56,44 @@ Progress:
 - [x] Durable queue leasing with `FOR UPDATE SKIP LOCKED`, inspection, retry/dead-letter semantics, and final-lease exhaustion protection.
 - [x] Transaction helper so durable state and outbox writes can share one PostgreSQL transaction.
 - [x] Advisory-locked SQL migration runner and local PostgreSQL Docker Compose bootstrap with healthcheck.
-- [ ] Wire the durable adapters through an application composition root behind the same ports.
-- [ ] Add an S3-compatible object-store adapter, with MinIO/local filesystem for development and a cloud-compatible backend for deployment.
-- [ ] Add targeted PostgreSQL integration gating once the runtime composition depends on durable persistence.
-- [ ] Add backup/restore notes and operational health endpoints for the durable runtime.
+- [x] Durable adapters wired through an application composition root behind the same provider-neutral ports.
+- [x] Durable publisher idempotency storage.
+- [x] Provider-neutral queue settlement boundary.
+- [x] PostgreSQL terminal queue settlement (`complete`/`fail`) + lifecycle outbox append in one transaction, with rollback coverage.
+- [ ] Add an S3-compatible object-store adapter, with local filesystem/MinIO for development and a cloud-compatible backend for deployment.
+- [ ] Add targeted PostgreSQL integration gating once the durable runtime path is stable, without starting a database on unrelated PRs.
+- [ ] Add backup/restore notes and operational health/readiness endpoints for the durable runtime.
 
-Exit condition: restart-safe execution with no loss of queued work or workflow metadata.
+Reliability note: lease acquisition and the informational `job.execution.started` event are separate. A crash after lease acquisition is handled through lease expiry/retry; correctness-critical terminal queue state is committed atomically with its lifecycle outbox event.
+
+Exit condition: restart-safe execution with no loss of queued work or terminal workflow metadata.
+
+## M2.K — Engineering project brain — active
+
+Goal: remove long-term project state from chat memory without making RAG/agent infrastructure a runtime dependency.
+
+Canonical engineering state:
+
+- Git source/history for implementation truth.
+- Backlog-style task/dependency records for roadmap execution.
+- ADR/decision records for architectural choices and supersession.
+- Spec Kit-style feature specs selectively for larger cross-service changes.
+- A small machine-readable current-state snapshot for agents and automation.
+
+Derived intelligence:
+
+- Install Understand Anything as a local Codex/Claude developer skill/plugin, not a VideoOS runtime package.
+- Generate `.ua` code/knowledge graph artifacts for codebase navigation, semantic search, domain understanding, and change-impact analysis.
+- Treat `.ua` as rebuildable derived state; never let it override Git/backlog/ADR/spec truth.
+- Do not add a GitHub Actions workflow for Understand Anything during this phase.
+
+Later boundary:
+
+- Add a provider-neutral `ProjectKnowledgePort` only when multiple project-knowledge consumers/adapters justify it.
+- Candidate adapters later: Understand Anything read model, Git/backlog read models, pgvector corpus retrieval, and Graphiti temporal knowledge.
+- MCP exposure belongs at the bounded tool layer, not in the deterministic job engine.
+
+Exit condition: a fresh coding-agent session can discover current milestone, blockers, decisions, and code relationships from repository state without requiring historical chat context.
 
 ## M3 — Media production path
 
@@ -101,9 +134,9 @@ Goal: make real usage data improve product decisions and automation quality.
 
 Exit condition: the system can explain where time/cost/failures occur and recommend what to improve next.
 
-## M6 — RAG, MCP, and agent layer
+## M6 — Product RAG, MCP, and agent layer
 
-Goal: expose useful context/tools to coding agents and end-user assistants without turning the core into an agent framework.
+Goal: expose useful runtime/product context and bounded tools to assistants without turning the core into an agent framework.
 
 RAG:
 
@@ -116,11 +149,6 @@ MCP:
 - Use MCP at the tool/integration boundary for developer tooling and optional end-user tool access.
 - Do not make MCP a dependency of the deterministic job engine.
 - Expose small capabilities such as project lookup, job status, asset search, publish preview, and analytics queries after their underlying APIs are stable.
-
-Spec-driven engineering:
-
-- Adopt Spec Kit-style feature specifications selectively for larger cross-service features: problem, contract changes, acceptance criteria, rollout, and migration.
-- Keep specs/docs as engineering inputs, not runtime dependencies.
 
 Exit condition: agents can retrieve project/system context and invoke bounded tools without bypassing authorization or workflow invariants.
 
@@ -138,11 +166,13 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Wire PostgreSQL adapters into the runtime composition behind the existing ports.
-2. Add the first S3-compatible object-store adapter.
-3. Add a targeted durable integration gate without turning PostgreSQL into a cost on every unrelated PR.
-4. Add the first real media executor (FFmpeg) with strict sandbox/resource limits.
-5. Add the first real publishing adapter and prove idempotent reconciliation.
-6. Add event-based operational views before expanding RAG/MCP automation.
+1. Finish and merge atomic PostgreSQL queue settlement + lifecycle outbox handling.
+2. Establish canonical Project Brain state in-repo (task/dependency records, ADRs, current-state snapshot) and document local Understand Anything usage.
+3. Add the first S3-compatible object-store adapter, local-first.
+4. Add a targeted PostgreSQL integration gate inside the existing CI workflow without database cost on unrelated PRs.
+5. Add durable runtime health/readiness plus backup/restore notes and close M2.
+6. Add the first real media executor (FFmpeg) with strict sandbox/resource limits.
+7. Add the first real publishing adapter and prove idempotent reconciliation.
+8. Add event-based operational views before expanding product RAG/MCP automation.
 
-Do not start RAG/MCP-heavy automation or broad platform integrations before the durable execution/event path is trustworthy; otherwise they amplify an unstable substrate instead of improving it.
+Do not start broad product RAG/MCP automation or many provider integrations before the durable execution/event path is trustworthy. Engineering Project Brain work is allowed earlier because it is developer tooling and derived repository intelligence, not a dependency of the runtime core.

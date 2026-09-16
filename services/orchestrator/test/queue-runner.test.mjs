@@ -33,6 +33,19 @@ function createEventBus() {
   };
 }
 
+function createSettlement() {
+  const calls = { complete: [], fail: [] };
+  return {
+    calls,
+    port: {
+      async complete(jobId, event) { calls.complete.push({ jobId, event }); },
+      async fail(jobId, error, retryAt, event) {
+        calls.fail.push({ jobId, error, retryAt, event });
+      },
+    },
+  };
+}
+
 function sequenceClock(...timestamps) {
   let index = 0;
   return () => {
@@ -83,6 +96,27 @@ test('runOnce completes a leased job and emits lifecycle events', async () => {
   assert.equal(eventBus.events[1].occurredAt, '2026-09-16T00:00:02.000Z');
 });
 
+test('runOnce delegates completion and its lifecycle event to the settlement boundary', async () => {
+  const queue = createQueue(structuredClone(baseJob));
+  const eventBus = createEventBus();
+  const settlement = createSettlement();
+  const runner = new QueueRunner(queue.port, eventBus.port, {
+    workerId: 'worker-a',
+    settlement: settlement.port,
+    now: sequenceClock('2026-09-16T00:00:00.000Z', '2026-09-16T00:00:02.000Z'),
+    idFactory: sequenceIds(),
+  });
+
+  await runner.runOnce('publish', async () => {});
+
+  assert.deepEqual(queue.calls.complete, []);
+  assert.deepEqual(eventBus.events.map((event) => event.type), ['job.execution.started']);
+  assert.equal(settlement.calls.complete.length, 1);
+  assert.equal(settlement.calls.complete[0].jobId, 'job-1');
+  assert.equal(settlement.calls.complete[0].event.type, 'job.execution.completed');
+  assert.equal(settlement.calls.complete[0].event.payload.status, 'completed');
+});
+
 test('runOnce schedules a bounded retry after handler failure', async () => {
   const queue = createQueue(structuredClone(baseJob));
   const eventBus = createEventBus();
@@ -113,6 +147,32 @@ test('runOnce schedules a bounded retry after handler failure', async () => {
   }]);
   assert.equal(eventBus.events.at(-1).payload.status, 'retry-scheduled');
   assert.equal(eventBus.events.at(-1).payload.retryAt, '2026-09-16T00:00:07.000Z');
+});
+
+test('runOnce delegates failure and its lifecycle event to the settlement boundary', async () => {
+  const queue = createQueue(structuredClone(baseJob));
+  const eventBus = createEventBus();
+  const settlement = createSettlement();
+  const runner = new QueueRunner(queue.port, eventBus.port, {
+    workerId: 'worker-a',
+    settlement: settlement.port,
+    baseRetryMs: 2_000,
+    now: sequenceClock('2026-09-16T00:00:00.000Z', '2026-09-16T00:00:05.000Z'),
+    idFactory: sequenceIds(),
+  });
+
+  await runner.runOnce('publish', async () => {
+    throw new Error('rate limited');
+  });
+
+  assert.deepEqual(queue.calls.fail, []);
+  assert.deepEqual(eventBus.events.map((event) => event.type), ['job.execution.started']);
+  assert.equal(settlement.calls.fail.length, 1);
+  assert.equal(settlement.calls.fail[0].jobId, 'job-1');
+  assert.equal(settlement.calls.fail[0].error, 'rate limited');
+  assert.equal(settlement.calls.fail[0].retryAt, '2026-09-16T00:00:07.000Z');
+  assert.equal(settlement.calls.fail[0].event.type, 'job.execution.failed');
+  assert.equal(settlement.calls.fail[0].event.payload.status, 'retry-scheduled');
 });
 
 test('runOnce dead-letters the final failed attempt', async () => {

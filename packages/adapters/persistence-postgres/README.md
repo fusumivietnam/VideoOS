@@ -7,6 +7,7 @@ Durable implementations for the VideoOS core ports and runtime support:
 - job queue
 - event outbox
 - event-bus-to-outbox writer
+- atomic queue settlement + lifecycle outbox writer
 - namespaced JSON value store for small durable control-plane values such as publisher idempotency receipts
 
 Provider-specific `pg` types stay inside this adapter package.
@@ -36,8 +37,10 @@ await withTransaction(pool, async (client) => {
 
 External event publication happens after commit through an outbox dispatcher.
 
+For queue terminal transitions, use `PostgresQueueSettlement`. It updates the queue job and appends the matching lifecycle event in one transaction. If either write fails, both roll back.
+
 ## Queue semantics
 
 Leasing uses `FOR UPDATE SKIP LOCKED`. Delivery is at-least-once and expired leases are reclaimable while attempts remain. An expired lease that already consumed the final allowed attempt is moved to `dead-letter` instead of being leased again. External side effects must remain idempotent.
 
-The current generic queue runner still settles queue state and writes lifecycle events in separate operations. The Postgres composition persists both, but M2 must make settlement + outbox append atomic before the durable runtime is considered restart-safe at the completion boundary.
+The PostgreSQL runtime injects `PostgresQueueSettlement` behind the orchestrator's provider-neutral settlement port. The generic runner therefore remains persistence-agnostic while correctness-critical completion/failure state and lifecycle outbox records are committed atomically.

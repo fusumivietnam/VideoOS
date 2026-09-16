@@ -31,4 +31,6 @@ DATABASE_URL=postgres://videoos:videoos@localhost:5432/videoos \
   pnpm --filter @videoos/adapter-persistence-postgres migrate
 ```
 
-The Postgres runtime persists lifecycle events to the transactional outbox and persists publisher idempotency values. Queue settlement and lifecycle outbox append are still separate writes at this stage; M2 must close that atomicity gap before claiming restart-safe workflow completion.
+The Postgres runtime persists lifecycle events to the transactional outbox and publisher idempotency values. Terminal queue settlement (`complete`/`fail`) and the corresponding lifecycle outbox append share one PostgreSQL transaction through the queue-settlement port, so a failed outbox append rolls back the queue transition.
+
+Lease acquisition and the informational `job.execution.started` event remain separate operations. A crash after lease acquisition is recovered through lease expiry/retry semantics; correctness-critical terminal state is committed atomically with its lifecycle event.
