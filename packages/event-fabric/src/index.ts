@@ -1,25 +1,34 @@
 import type { EventEnvelope } from '@videoos/contracts';
 
-export type EventHandler<T = unknown> = (event: EventEnvelope<T>) => Promise<void> | void;
+export type EventHandler<TType extends string = string, TPayload = unknown> = (
+  event: EventEnvelope<TType, TPayload>,
+) => Promise<void> | void;
 
 export interface EventBus {
-  publish<T>(event: EventEnvelope<T>): Promise<void>;
-  subscribe<T>(topic: string, handler: EventHandler<T>): () => void;
+  publish<TType extends string, TPayload>(event: EventEnvelope<TType, TPayload>): Promise<void>;
+  subscribe<TType extends string, TPayload = unknown>(
+    topic: TType,
+    handler: EventHandler<TType, TPayload>,
+  ): () => void;
 }
 
 export class InMemoryEventBus implements EventBus {
   private readonly handlers = new Map<string, Set<EventHandler>>();
 
-  async publish<T>(event: EventEnvelope<T>): Promise<void> {
+  async publish<TType extends string, TPayload>(event: EventEnvelope<TType, TPayload>): Promise<void> {
     const handlers = [...(this.handlers.get(event.type) ?? [])];
     await Promise.all(handlers.map((handler) => handler(event as EventEnvelope)));
   }
 
-  subscribe<T>(topic: string, handler: EventHandler<T>): () => void {
+  subscribe<TType extends string, TPayload = unknown>(
+    topic: TType,
+    handler: EventHandler<TType, TPayload>,
+  ): () => void {
     const handlers = this.handlers.get(topic) ?? new Set<EventHandler>();
-    handlers.add(handler as EventHandler);
+    const storedHandler = handler as EventHandler;
+    handlers.add(storedHandler);
     this.handlers.set(topic, handlers);
-    return () => handlers.delete(handler as EventHandler);
+    return () => handlers.delete(storedHandler);
   }
 }
 
