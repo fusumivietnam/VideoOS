@@ -67,6 +67,7 @@ export function createRuntime<TPorts extends RuntimePorts>(
         const result = await mediaWorker.transform(
           {
             sourceAssetId: payload.assetId,
+            ...(payload.transform.preset ? { preset: payload.transform.preset } : {}),
             operations: payload.transform.operations,
             output: payload.transform.output,
           },
