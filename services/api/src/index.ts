@@ -10,9 +10,21 @@ export interface ApiDependencies {
   jobs: JobQueue;
 }
 
+export interface PublishApprovalRecord {
+  approvedBy: Principal;
+  approvedAt: string;
+}
+
+export interface PublishJobPayload {
+  projectId: string;
+  request: PublishRequest;
+  approval: PublishApprovalRecord;
+}
+
 export interface CreatePublishCommand {
   principal: Principal;
   request: PublishRequest;
+  approval?: PublishApprovalRecord;
 }
 
 export interface MediaJobPayload {
@@ -70,8 +82,36 @@ export class VideoOsApi {
       'publish.create',
     );
 
+    if (!command.approval) throw new Error('publish approval required');
+    await authorizeProjectCapability(
+      this.dependencies.memberships,
+      command.approval.approvedBy,
+      command.request.projectId,
+      'publish.manage',
+    );
+
+    if (!isValidIsoDateTime(command.approval.approvedAt)) throw new Error('publish approval timestamp is invalid');
+    if (command.request.scheduledAt && !isValidIsoDateTime(command.request.scheduledAt)) {
+      throw new Error('publish scheduledAt is invalid');
+    }
+
+    for (const asset of command.request.assets) {
+      const record = await this.dependencies.assets.getById(asset.assetId);
+      if (!record || record.projectId !== command.request.projectId) {
+        throw new Error('publish asset not found in project');
+      }
+    }
+
     const jobId = `publish:${command.request.projectId}:${command.request.idempotencyKey}`;
-    await this.dependencies.jobs.enqueue('publish', jobId, command.request, { maxAttempts: 5 });
+    const payload: PublishJobPayload = {
+      projectId: command.request.projectId,
+      request: command.request,
+      approval: {
+        approvedBy: { ...command.approval.approvedBy },
+        approvedAt: command.approval.approvedAt,
+      },
+    };
+    await this.dependencies.jobs.enqueue('publish', jobId, payload, { maxAttempts: 5 });
     return { jobId };
   }
 
@@ -98,6 +138,15 @@ export class VideoOsApi {
 
 function projectIdFromPayload(payload: unknown): string | null {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
-  const projectId = (payload as Record<string, unknown>).projectId;
+  const value = payload as Record<string, unknown>;
+  if (typeof value.projectId === 'string' && value.projectId.length > 0) return value.projectId;
+  const request = value.request;
+  if (typeof request !== 'object' || request === null || Array.isArray(request)) return null;
+  const projectId = (request as Record<string, unknown>).projectId;
   return typeof projectId === 'string' && projectId.length > 0 ? projectId : null;
+}
+
+function isValidIsoDateTime(value: string): boolean {
+  if (!value || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return false;
+  return Number.isFinite(Date.parse(value));
 }
