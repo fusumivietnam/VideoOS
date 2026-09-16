@@ -81,11 +81,10 @@ test('credential manager connects, rotates and disconnects project/account-scope
   assert.equal(await store.get({ projectId: PROJECT, accountId: ACCOUNT }), undefined);
 });
 
-test('authorization URL requests offline consent and bounded YouTube scopes', () => {
+test('authorization URL requests offline consent and bounded YouTube scopes without accepting a client secret', () => {
   const manager = new YouTubeCredentialManager({ store: new InMemoryYouTubeOAuthCredentialStore() });
   const url = new URL(manager.authorizationUrl({
     clientId: 'client-id',
-    clientSecret: 'not-in-url',
     redirectUri: 'http://127.0.0.1:8787/oauth/callback',
     state: 'csrf-state',
   }));
@@ -94,7 +93,6 @@ test('authorization URL requests offline consent and bounded YouTube scopes', ()
   assert.equal(url.searchParams.get('access_type'), 'offline');
   assert.equal(url.searchParams.get('prompt'), 'consent');
   assert.equal(url.searchParams.get('state'), 'csrf-state');
-  assert.equal(url.toString().includes('not-in-url'), false);
   assert.match(url.searchParams.get('scope') ?? '', /youtube\.upload/);
   assert.match(url.searchParams.get('scope') ?? '', /youtube\.readonly/);
 });
