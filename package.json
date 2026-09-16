@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "packageManager": "pnpm@10.17.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
@@ -12,9 +12,9 @@
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
-    "quality": "pnpm lint && pnpm typecheck && pnpm test",
-    "review:preview": "ocr review --preview",
-    "review": "ocr review",
-    "review:scan": "ocr scan"
+    "architecture:check": "node tooling/architecture-check.mjs",
+    "generate:service": "node tooling/generate-service.mjs",
+    "generate:adapter": "node tooling/generate-adapter.mjs",
+    "quality": "pnpm architecture:check && pnpm lint && pnpm typecheck && pnpm test"
   }
 }
