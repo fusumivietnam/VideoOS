@@ -91,6 +91,12 @@ export interface YouTubeOAuthClientInput {
   redirectUri: string;
 }
 
+export interface YouTubeAuthorizationUrlInput {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+}
+
 export interface YouTubeCredentialManagerOptions {
   store: YouTubeOAuthCredentialStore;
   fetchImpl?: typeof fetch;
@@ -106,7 +112,7 @@ export class YouTubeCredentialManager {
     this.now = options.now ?? (() => new Date());
   }
 
-  authorizationUrl(input: YouTubeOAuthClientInput & { state: string }): string {
+  authorizationUrl(input: YouTubeAuthorizationUrlInput): string {
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.searchParams.set('client_id', input.clientId);
     url.searchParams.set('redirect_uri', input.redirectUri);
