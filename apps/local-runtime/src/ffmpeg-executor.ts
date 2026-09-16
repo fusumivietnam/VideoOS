@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, realpath, stat, unlink } from 'node:fs/promises';
-import { dirname, relative, resolve, sep } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import type { MediaOperation } from '@videoos/contracts';
@@ -367,7 +367,7 @@ function assertResolvedInsideSandbox(root: string, candidate: string): void {
 
 function isInside(root: string, candidate: string): boolean {
   const relation = relative(root, candidate);
-  return relation === '' || (!relation.startsWith(`..${sep}`) && relation !== '..' && !resolve(relation).startsWith(sep));
+  return relation === '' || (!relation.startsWith('..') && !isAbsolute(relation));
 }
 
 async function removeExistingRegularOutput(outputPath: string): Promise<void> {
