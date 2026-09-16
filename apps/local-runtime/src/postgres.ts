@@ -17,6 +17,14 @@ import type { NetworkPublisherAdapter } from '../../../services/publisher/src/in
 import { createRuntime } from './index.js';
 import { DerivedAssetFinalizer, FfprobeMediaProbe, type MediaProbe } from './media-artifact.js';
 
+export interface PostgresPublisherAdapterContext {
+  assets: PostgresAssetRepository;
+  objectStore?: ObjectStore;
+  jsonStore<T>(namespace: string): PostgresJsonStore<T>;
+}
+
+export type PostgresPublisherAdapterFactory = (context: PostgresPublisherAdapterContext) => NetworkPublisherAdapter[];
+
 export interface PostgresRuntimeOptions {
   connectionString: string;
   mediaExecutor: MediaExecutor;
@@ -25,6 +33,7 @@ export interface PostgresRuntimeOptions {
   mediaExecutorName?: string;
   mediaExecutorVersion?: string;
   publisherAdapters: NetworkPublisherAdapter[];
+  publisherAdapterFactories?: PostgresPublisherAdapterFactory[];
   workerId?: string;
 }
 
@@ -47,12 +56,24 @@ export function createPostgresRuntime(options: PostgresRuntimeOptions) {
       })
     : undefined;
 
+  const publisherContext: PostgresPublisherAdapterContext = {
+    assets,
+    ...(options.objectStore ? { objectStore: options.objectStore } : {}),
+    jsonStore<T>(namespace: string) {
+      return new PostgresJsonStore<T>(pool, namespace);
+    },
+  };
+  const publisherAdapters = [
+    ...options.publisherAdapters,
+    ...(options.publisherAdapterFactories ?? []).flatMap((factory) => factory(publisherContext)),
+  ];
+
   const runtime = createRuntime(ports, {
     mediaExecutor: options.mediaExecutor,
     ...(mediaArtifactFinalizer ? { mediaArtifactFinalizer } : {}),
     ...(options.mediaExecutorName ? { mediaExecutorName: options.mediaExecutorName } : {}),
     ...(options.mediaExecutorVersion ? { mediaExecutorVersion: options.mediaExecutorVersion } : {}),
-    publisherAdapters: options.publisherAdapters,
+    publisherAdapters,
     publisherIdempotency: new PostgresJsonStore<PublishReceipt[]>(pool, 'publisher-idempotency'),
     queueSettlement: new PostgresQueueSettlement(pool),
     workerId: options.workerId ?? 'postgres-runtime',
@@ -62,6 +83,7 @@ export function createPostgresRuntime(options: PostgresRuntimeOptions) {
     ...runtime,
     pool,
     outbox,
+    publisherContext,
     liveness() {
       return { status: 'alive' as const };
     },

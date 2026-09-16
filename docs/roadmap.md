@@ -73,15 +73,14 @@ Exit condition met: source asset -> deterministic derived video/image asset work
 
 Goal: publish the same canonical content package through independent network adapters.
 
-- [ ] `VID-11`: implement the first production publishing adapter and prove idempotent reconciliation before adding a second provider.
-- [ ] Canonical publish validation and platform capability matrix.
-- [ ] Credential-vault boundary; credentials never enter browser/public contracts.
-- [ ] Adapter behavior for upload, post creation, scheduling, polling, retry and rate-limit translation.
-- [ ] Publish receipts plus reconciliation for remote-state drift.
+- [x] `VID-11`: first production adapter implemented for YouTube with a capability matrix, trusted object-store asset loading, resumable upload, server-side credential boundary, durable attempt journal, normalized receipts, retry/rate-limit translation and exact reconciliation.
+- [ ] `VID-12`: add refresh-capable YouTube OAuth onboarding, credential rotation/disconnect and an explicit manual live-provider smoke path.
+- [x] First-adapter provider logic stays outside publisher core and uses the same queue retry/max-attempt authority.
+- [x] First-adapter automated tests use fake transports; live provider credentials are not a CI dependency.
 - [ ] Manual approval/scheduling policies before autonomous bulk publishing.
-- [ ] Add a second network adapter only after the first adapter's recovery semantics are demonstrated.
+- [ ] Add a second network adapter only after the first live YouTube path is verified or explicitly waived by a recorded decision.
 
-Exit condition: at least two network adapters use the same publisher core without forks.
+Exit condition: at least two network adapters use the same publisher core without forks and their credential/reconciliation paths are operationally verified.
 
 ## M5 — Observability and flywheel
 
@@ -119,10 +118,11 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Implement `VID-11` first production publishing adapter with a capability matrix, server-side credential boundary, idempotent side effects and reconciliation.
-2. Prove retry/rate-limit/recovery behavior with fake transport in CI and explicit/manual live-provider testing only.
-3. Add a second network adapter only after the first adapter is operationally trustworthy.
-4. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block runtime work on this manual step.
-5. Add event-based operational views before expanding product RAG/MCP automation.
+1. Complete `VID-12`: server-side YouTube OAuth refresh/onboarding plus an explicit manual private-upload/reconciliation smoke test.
+2. Record live-provider results and operational constraints; do not place OAuth secrets in CI.
+3. Add manual approval/scheduling policy before autonomous or bulk publishing.
+4. Add a second network adapter only after the YouTube live path is verified or a waiver is recorded.
+5. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block runtime work on this manual step.
+6. Add event-based operational views before expanding product RAG/MCP automation.
 
 Do not start broad product RAG/MCP automation or many provider integrations before deterministic publishing behavior is trustworthy. Engineering Project Brain work may continue in parallel because it is developer tooling and derived repository intelligence, not a runtime dependency.

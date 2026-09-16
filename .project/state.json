@@ -5,8 +5,8 @@
   "milestoneName": "Multi-network publishing",
   "status": "active",
   "currentFocus": [
-    "VID-11 implement the first production publishing adapter and prove idempotent reconciliation before adding a second provider",
-    "keep provider credentials server-side behind an explicit credential boundary",
+    "VID-12 add server-side YouTube OAuth refresh/onboarding and explicit manual live verification",
+    "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision",
     "VID-5 bootstrap the Understand Anything derived graph locally without blocking runtime work"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
@@ -23,10 +23,11 @@
     "deterministic social media presets with preset-aware reproducible lineage",
     "project-scoped subtitle staging and sandboxed subtitle burn-in",
     "optional local-node media lease execution with generic CPU/GPU requirements and queue-authoritative retries",
-    "deterministic JPEG/PNG thumbnail and representative-frame extraction with image asset lineage"
+    "deterministic JPEG/PNG thumbnail and representative-frame extraction with image asset lineage",
+    "retry-safe YouTube publishing adapter with trusted object-store asset loading, resumable upload, durable attempt journaling, normalized receipts, and exact reconciliation"
   ],
   "blockers": [],
-  "nextTasks": ["VID-11", "VID-5"],
+  "nextTasks": ["VID-12", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
