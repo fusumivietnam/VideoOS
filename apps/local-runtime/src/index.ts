@@ -1,4 +1,4 @@
-import type { EventBusPort, PublishRequest } from '@videoos/contracts';
+import type { EventBusPort } from '@videoos/contracts';
 import { InMemoryEventBus } from '@videoos/event-fabric';
 import {
   InMemoryMembershipRepository,
@@ -8,7 +8,7 @@ import {
 import { InMemoryJobQueue, type JobQueue } from '@videoos/job-queue';
 import { InMemoryAssetRepository, type AssetRepository } from '@videoos/storage';
 
-import { VideoOsApi, type MediaJobPayload } from '../../../services/api/src/index.js';
+import { VideoOsApi, type MediaJobPayload, type PublishJobPayload } from '../../../services/api/src/index.js';
 import { MediaWorker, type MediaExecutor } from '../../../services/media-worker/src/index.js';
 import { QueueRunner, type QueueSettlementPort } from '../../../services/orchestrator/src/index.js';
 import {
@@ -87,8 +87,8 @@ export function createRuntime<TPorts extends RuntimePorts>(
       });
     },
     async runPublishOnce() {
-      return runner.runOnce<PublishRequest>('publish', async (job) => {
-        await publisher.publish(job.payload);
+      return runner.runOnce<PublishJobPayload>('publish', async (job) => {
+        await publisher.publish(job.payload.request);
       });
     },
   };

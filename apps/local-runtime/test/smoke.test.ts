@@ -100,6 +100,10 @@ test('local runtime executes media and publish jobs end to end', async () => {
 
     const publish = await runtime.api.createPublish({
       principal,
+      approval: {
+        approvedBy: principal,
+        approvedAt: '2026-09-17T00:30:00.000Z',
+      },
       request: {
         idempotencyKey: 'publish-one',
         projectId: 'project:one',

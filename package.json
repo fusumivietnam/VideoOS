@@ -13,6 +13,7 @@
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "architecture:check": "node tooling/architecture-check.mjs",
+    "launch:check": "node tooling/launch-check.mjs",
     "generate:service": "node tooling/generate-service.mjs",
     "generate:adapter": "node tooling/generate-adapter.mjs",
     "quality": "pnpm architecture:check && pnpm lint && pnpm typecheck && pnpm test"
