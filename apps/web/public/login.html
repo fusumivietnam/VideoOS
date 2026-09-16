@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VideoOS Alpha Access</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell auth-shell">
+    <section class="card auth-card">
+      <p class="eyebrow">VideoOS · protected alpha</p>
+      <h1 class="auth-title">Access control plane</h1>
+      <p class="lede">Enter the server-provided alpha access code. The code is exchanged for a short-lived HttpOnly session and is never stored in browser state.</p>
+      <form id="login-form" class="auth-form" autocomplete="off">
+        <label for="access-code">Access code</label>
+        <input id="access-code" name="accessCode" type="password" minlength="12" required autocomplete="current-password">
+        <button type="submit">Continue</button>
+        <p id="login-error" class="error" role="alert" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/login.js"></script>
+</body>
+</html>

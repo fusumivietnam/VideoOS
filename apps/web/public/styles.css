@@ -35,7 +35,16 @@ h2 { margin: 4px 0 14px; font-size: 1.05rem; letter-spacing: -.02em; }
 .command { overflow-x: auto; border: 1px solid #242c39; background: #080c12; border-radius: 10px; padding: 12px; color: #b8c8ff; font: 500 .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 code { color: #b8c8ff; }
 footer { display: flex; justify-content: space-between; gap: 16px; padding: 18px 4px 0; color: #657084; font-size: .78rem; }
-.error { color: #ff9a9a; }
+.error { color: #ff9a9a; min-height: 1.25rem; }
+.auth-shell { min-height: 100vh; display: grid; place-items: center; padding-block: 24px; }
+.auth-card { width: min(520px, 100%); padding: 30px; }
+.auth-title { margin-top: 10px; font-size: clamp(2rem, 7vw, 3.4rem); }
+.auth-form { display: grid; gap: 12px; margin-top: 28px; }
+.auth-form label { color: #c6cfdd; font-size: .85rem; font-weight: 700; }
+.auth-form input { width: 100%; border: 1px solid #303a49; border-radius: 10px; padding: 12px 14px; background: #080c12; color: #f5f7fb; font: inherit; outline: none; }
+.auth-form input:focus { border-color: #7287ff; box-shadow: 0 0 0 3px rgba(114, 135, 255, .15); }
+.auth-form button { border: 0; border-radius: 10px; padding: 12px 14px; background: #e8ecff; color: #101522; font: inherit; font-weight: 800; cursor: pointer; }
+.auth-form button:hover { background: #fff; }
 @media (max-width: 760px) {
   .shell { padding-top: 28px; }
   .hero { flex-direction: column; }
