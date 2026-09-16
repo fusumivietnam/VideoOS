@@ -80,7 +80,7 @@ Goal: make the first deterministic publishing path operationally trustworthy, th
 - [x] First-adapter automated tests use fake transports; live provider credentials are not a CI dependency.
 - [x] `VID-13`: explicit project-authorized publish approval, audit-preserved internal approval metadata, asset ownership checks, schedule timestamp validation and repository-owned launch readiness checks.
 - [x] `VID-14`: dependency-free read-only web launch cockpit derived only from canonical repository state; no provider mutation or business logic in the UI shell.
-- [ ] `VID-15`: package the cockpit as a localhost-only, non-root, read-only controlled-alpha container with no new managed service or CI workflow.
+- [x] `VID-15`: localhost-only, non-root, read-only controlled-alpha container packaging with simple operator lifecycle commands and no new managed service or CI workflow.
 - [ ] Add a second network adapter only after the first live YouTube path is verified or explicitly waived by a recorded decision.
 
 M4 controlled-alpha exit condition: the read-only operator surface is deployable, publish safety gates are enforced, and the YouTube live path has recorded external verification. Multi-network breadth may continue after this launch gate; it is not required to delay the first controlled alpha.
@@ -123,12 +123,11 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Complete `VID-15` controlled-alpha packaging and keep the cockpit localhost/private by default.
-2. Run and record `VID-12` real YouTube private-upload/reconciliation verification on a trusted operator host; OAuth secrets remain outside CI/repository state.
-3. Run `pnpm launch:check`; do not call the publishing path launch-verified until the canonical gate is green or an explicit waiver decision exists.
-4. Build the minimum authenticated product surface needed for non-operator users; do not expose the current read-only alpha cockpit directly to the public internet.
-5. Add event-based M5 operational views immediately after first real usage so retry/failure/latency/cost evidence guides the next expansion.
-6. Add a second publishing adapter only after the YouTube live gate is verified or waived; provider count is no longer a prerequisite for the first controlled alpha.
-7. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block launch/runtime work on this manual step.
+1. Run and record `VID-12` real YouTube private-upload/reconciliation verification on a trusted operator host; OAuth secrets remain outside CI/repository state.
+2. Use `pnpm alpha:up` for the completed localhost/private controlled-alpha cockpit and `pnpm launch:check` as the canonical readiness view; a red publishing gate is expected until VID-12 external verification is recorded.
+3. Build the minimum authenticated product surface needed for non-operator users; do not expose the current read-only alpha cockpit directly to the public internet.
+4. Add event-based M5 operational views immediately after first real usage so retry/failure/latency/cost evidence guides the next expansion.
+5. Add a second publishing adapter only after the YouTube live gate is verified or waived; provider count is no longer a prerequisite for the first controlled alpha.
+6. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block launch/runtime work on this manual step.
 
 Do not start broad product RAG/MCP automation or many provider integrations before deterministic publishing behavior is trustworthy. Engineering Project Brain work may continue in parallel because it is developer tooling and derived repository intelligence, not a runtime dependency.
