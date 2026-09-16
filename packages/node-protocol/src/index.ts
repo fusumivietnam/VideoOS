@@ -115,7 +115,7 @@ export class InMemoryNodeTaskBroker implements NodeTaskBroker {
       throw new Error('node leaseMs must be a positive integer');
     }
     const completed = this.results.get(request.taskId);
-    if (completed) return null;
+    if (completed?.status === 'succeeded') return null;
 
     this.reclaimExpiredLeases();
     const existingLeaseId = this.taskLeaseIds.get(request.taskId);
@@ -149,10 +149,8 @@ export class InMemoryNodeTaskBroker implements NodeTaskBroker {
 
   acceptResult(result: NodeTaskResult): 'accepted' | 'duplicate' {
     const existing = this.results.get(result.taskId);
-    if (existing) {
-      if (sameResult(existing, result)) return 'duplicate';
-      throw new Error('conflicting duplicate node result');
-    }
+    if (existing && sameResult(existing, result)) return 'duplicate';
+    if (existing?.status === 'succeeded') throw new Error('conflicting duplicate node result');
 
     const lease = this.leases.get(result.leaseId);
     if (!lease || lease.taskId !== result.taskId || lease.nodeId !== result.nodeId) {
