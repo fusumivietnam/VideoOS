@@ -36,7 +36,7 @@ function createHarness() {
     store,
     commands,
     setGetBody(value: Uint8Array) {
-      getBody = value;
+      getBody = new Uint8Array(value);
     },
     setGetError(value: unknown) {
       getError = value;
