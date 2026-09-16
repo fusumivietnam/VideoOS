@@ -19,14 +19,15 @@ async function main(): Promise<void> {
   }
 
   const clientId = required('VIDEOOS_YOUTUBE_CLIENT_ID');
-  const clientSecret = required('VIDEOOS_YOUTUBE_CLIENT_SECRET');
 
   if (command === 'url') {
     const redirectUri = required('VIDEOOS_YOUTUBE_REDIRECT_URI');
     const state = required('VIDEOOS_YOUTUBE_OAUTH_STATE');
-    process.stdout.write(`${manager.authorizationUrl({ clientId, clientSecret, redirectUri, state })}\n`);
+    process.stdout.write(`${manager.authorizationUrl({ clientId, redirectUri, state })}\n`);
     return;
   }
+
+  const clientSecret = required('VIDEOOS_YOUTUBE_CLIENT_SECRET');
 
   if (command === 'connect') {
     await manager.connectWithAuthorizationCode({
