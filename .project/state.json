@@ -1,11 +1,11 @@
 {
   "project": "VideoOS",
-  "updatedAt": "2026-09-16",
+  "updatedAt": "2026-09-17",
   "milestone": "M4",
   "milestoneName": "Multi-network publishing",
   "status": "active",
   "currentFocus": [
-    "VID-12 add server-side YouTube OAuth refresh/onboarding and explicit manual live verification",
+    "VID-12 OAuth onboarding/refresh implementation is in PR #25; complete CI validation and the explicit manual live YouTube private-upload/reconciliation smoke before marking verified",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision",
     "VID-5 bootstrap the Understand Anything derived graph locally without blocking runtime work"
   ],
