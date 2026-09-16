@@ -93,7 +93,8 @@ export type MediaOperation =
   | { type: "trim"; startMs: number; endMs: number }
   | { type: "resize"; width: number; height: number; fit: "cover" | "contain" }
   | { type: "normalize-audio"; targetLufs: number }
-  | { type: "burn-subtitles"; subtitleAssetId: EntityId };
+  | { type: "burn-subtitles"; subtitleAssetId: EntityId }
+  | { type: "extract-frame"; atMs?: number; width?: number; height?: number };
 
 export interface AiTaskRequest {
   task: "generate" | "summarize" | "classify" | "extract" | "review";
