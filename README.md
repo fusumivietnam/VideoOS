@@ -11,4 +11,10 @@ VideoOS is a modular control plane for creating, orchestrating, publishing, obse
 - **Local + cloud execution**: workloads can run in web/cloud services or trusted local worker nodes.
 - **Contract-first evolution**: cross-service schemas are versioned and backward-compatible.
 
-See `docs/architecture/system.md` for the system map and `docs/quality/open-code-review.md` for the AI code-review integration.
+## Project navigation
+
+- `docs/architecture/system.md` — system map and boundaries.
+- `docs/architecture/mvp-flow.md` — canonical command/media/publish/local-node execution paths.
+- `docs/roadmap.md` — current delivery status and milestone sequence.
+- `docs/quality/open-code-review.md` — optional AI code-review integration; currently paused/manual-only.
+- `AGENTS.md` and `.agents/skills/` — repository instructions and reusable engineering skills.
