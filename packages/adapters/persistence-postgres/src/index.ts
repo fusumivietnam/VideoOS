@@ -88,6 +88,32 @@ function mapAsset(row: AssetRow): AssetRecord {
   return asset;
 }
 
+async function completeQueueJob(db: Queryable, id: string): Promise<void> {
+  const result = await db.query(
+    `UPDATE queue_jobs
+     SET status = 'completed', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+     WHERE id = $1`,
+    [id],
+  );
+  if (!result.rowCount) throw new Error(`queue job not found: ${id}`);
+}
+
+async function failQueueJob(db: Queryable, id: string, error: string, retryAt: string): Promise<void> {
+  const result = await db.query<QueueJobRow>(
+    `UPDATE queue_jobs
+     SET status = CASE WHEN attempts >= max_attempts THEN 'dead-letter' ELSE 'ready' END,
+         available_at = CASE WHEN attempts >= max_attempts THEN available_at ELSE $3 END,
+         last_error = $2,
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [id, error, retryAt],
+  );
+  if (!result.rows[0]) throw new Error(`queue job not found: ${id}`);
+}
+
 export class PostgresJobQueue implements JobQueue {
   constructor(private readonly pool: Pool) {}
 
@@ -153,29 +179,11 @@ export class PostgresJobQueue implements JobQueue {
   }
 
   async complete(id: string): Promise<void> {
-    const result = await this.pool.query(
-      `UPDATE queue_jobs
-       SET status = 'completed', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-       WHERE id = $1`,
-      [id],
-    );
-    if (!result.rowCount) throw new Error(`queue job not found: ${id}`);
+    await completeQueueJob(this.pool, id);
   }
 
   async fail(id: string, error: string, retryAt: string): Promise<void> {
-    const result = await this.pool.query<QueueJobRow>(
-      `UPDATE queue_jobs
-       SET status = CASE WHEN attempts >= max_attempts THEN 'dead-letter' ELSE 'ready' END,
-           available_at = CASE WHEN attempts >= max_attempts THEN available_at ELSE $3 END,
-           last_error = $2,
-           lease_owner = NULL,
-           lease_expires_at = NULL,
-           updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [id, error, retryAt],
-    );
-    if (!result.rows[0]) throw new Error(`queue job not found: ${id}`);
+    await failQueueJob(this.pool, id, error, retryAt);
   }
 }
 
@@ -239,6 +247,39 @@ export class PostgresEventOutbox implements EventOutbox {
   async incrementAttempts(id: string): Promise<void> {
     const result = await this.db.query('UPDATE outbox_events SET attempts = attempts + 1 WHERE id = $1', [id]);
     if (!result.rowCount) throw new Error(`outbox record not found: ${id}`);
+  }
+}
+
+export class PostgresQueueSettlement {
+  constructor(private readonly pool: Pool) {}
+
+  async complete(jobId: string, event: EventOutboxRecord['event']): Promise<void> {
+    await withTransaction(this.pool, async (client) => {
+      await completeQueueJob(client, jobId);
+      await new PostgresEventOutbox(client).append({
+        id: event.id,
+        event,
+        createdAt: event.occurredAt,
+        attempts: 0,
+      });
+    });
+  }
+
+  async fail(
+    jobId: string,
+    error: string,
+    retryAt: string,
+    event: EventOutboxRecord['event'],
+  ): Promise<void> {
+    await withTransaction(this.pool, async (client) => {
+      await failQueueJob(client, jobId, error, retryAt);
+      await new PostgresEventOutbox(client).append({
+        id: event.id,
+        event,
+        createdAt: event.occurredAt,
+        attempts: 0,
+      });
+    });
   }
 }
 
