@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Finalize lockfile and CI configuration
+      - name: Commit generated lockfile
         if: github.event_name == 'pull_request' && github.head_ref == 'chore/m1-lockfile-ci'
         shell: bash
         env:
@@ -43,67 +43,16 @@ jobs:
         run: |
           set -euo pipefail
           cp pnpm-lock.yaml /tmp/pnpm-lock.yaml
-          cat > /tmp/ci.yml <<'VIDEOOS_CI_EOF'
-          name: CI
-
-          on:
-            pull_request:
-            push:
-              branches: [main]
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          concurrency:
-            group: ci-${{ github.ref }}
-            cancel-in-progress: true
-
-          jobs:
-            quality:
-              runs-on: ubuntu-latest
-              timeout-minutes: 15
-              steps:
-                - name: Checkout
-                  uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, node24
-
-                - name: Setup pnpm
-                  uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0, node24
-                  with:
-                    version: 10.17.0
-                    run_install: false
-
-                - name: Setup Node.js
-                  uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, node24
-                  with:
-                    node-version: 24
-                    cache: pnpm
-                    cache-dependency-path: pnpm-lock.yaml
-
-                - name: Install dependencies
-                  run: pnpm install --frozen-lockfile
-
-                - name: Architecture boundaries
-                  run: pnpm architecture:check
-
-                - name: Typecheck workspace
-                  run: pnpm typecheck
-
-                - name: Test workspace
-                  run: pnpm test
-          VIDEOOS_CI_EOF
-
           git fetch origin "$HEAD_BRANCH"
           git checkout -B "$HEAD_BRANCH" "origin/$HEAD_BRANCH"
           cp /tmp/pnpm-lock.yaml pnpm-lock.yaml
-          cp /tmp/ci.yml .github/workflows/ci.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add pnpm-lock.yaml .github/workflows/ci.yml
+          git add pnpm-lock.yaml
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m 'chore: lock dependencies and enable pnpm cache'
+          git commit -m 'chore: lock pnpm dependencies'
           git push origin "HEAD:$HEAD_BRANCH"
 
       - name: Architecture boundaries
