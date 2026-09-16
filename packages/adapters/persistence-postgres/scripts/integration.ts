@@ -6,6 +6,7 @@ import {
   PostgresEventOutbox,
   PostgresJobQueue,
   PostgresMembershipRepository,
+  PostgresQueueSettlement,
   withTransaction,
 } from '../src/index.js';
 
@@ -19,8 +20,12 @@ const principalId = `user:${suffix}`;
 const assetId = `asset:${suffix}`;
 const rollbackAssetId = `asset:rollback:${suffix}`;
 const jobId = `job:${suffix}`;
+const atomicJobId = `job:atomic:${suffix}`;
+const atomicRollbackJobId = `job:atomic-rollback:${suffix}`;
 const exhaustedJobId = `job:exhausted:${suffix}`;
 const outboxId = `outbox:${suffix}`;
+const atomicEventId = `event:atomic:${suffix}`;
+const atomicRollbackEventId = `event:atomic-rollback:${suffix}`;
 const rollbackOutboxId = `outbox:rollback:${suffix}`;
 
 try {
@@ -88,6 +93,47 @@ try {
   await outbox.markDelivered(outboxId, new Date().toISOString());
   assert.ok(!(await outbox.pending(10)).some((record) => record.id === outboxId));
 
+  const settlement = new PostgresQueueSettlement(pool);
+  await queue.enqueue('media', atomicJobId, { projectId, assetId }, { maxAttempts: 3, availableAt: leaseTime.toISOString() });
+  assert.equal((await queue.lease('media', 'worker:atomic', 30_000, leaseTime))?.id, atomicJobId);
+  await settlement.complete(atomicJobId, {
+    id: atomicEventId,
+    type: 'job.execution.completed',
+    version: 1,
+    occurredAt: new Date().toISOString(),
+    correlationId: atomicJobId,
+    payload: { jobId: atomicJobId, status: 'completed' },
+  });
+  assert.equal((await queue.get(atomicJobId))?.status, 'completed');
+  assert.ok((await outbox.pending(20)).some((record) => record.id === atomicEventId));
+
+  await queue.enqueue('media', atomicRollbackJobId, { projectId, assetId }, { maxAttempts: 3, availableAt: leaseTime.toISOString() });
+  assert.equal((await queue.lease('media', 'worker:atomic-rollback', 30_000, leaseTime))?.id, atomicRollbackJobId);
+  await outbox.append({
+    id: atomicRollbackEventId,
+    event: {
+      id: atomicRollbackEventId,
+      type: 'test.conflict',
+      version: 1,
+      occurredAt: new Date().toISOString(),
+      correlationId: atomicRollbackJobId,
+      payload: {},
+    },
+    createdAt: new Date().toISOString(),
+    attempts: 0,
+  });
+  await assert.rejects(
+    settlement.complete(atomicRollbackJobId, {
+      id: atomicRollbackEventId,
+      type: 'job.execution.completed',
+      version: 1,
+      occurredAt: new Date().toISOString(),
+      correlationId: atomicRollbackJobId,
+      payload: { jobId: atomicRollbackJobId, status: 'completed' },
+    }),
+  );
+  assert.equal((await queue.get(atomicRollbackJobId))?.status, 'leased');
+
   await assert.rejects(
     withTransaction(pool, async (client) => {
       await new PostgresAssetRepository(client).create({
@@ -121,8 +167,14 @@ try {
 
   console.log('PostgreSQL durable-core integration test passed');
 } finally {
-  await pool.query('DELETE FROM queue_jobs WHERE id IN ($1, $2)', [jobId, exhaustedJobId]).catch(() => undefined);
-  await pool.query('DELETE FROM outbox_events WHERE id IN ($1, $2)', [outboxId, rollbackOutboxId]).catch(() => undefined);
+  await pool.query(
+    'DELETE FROM queue_jobs WHERE id IN ($1, $2, $3, $4)',
+    [jobId, exhaustedJobId, atomicJobId, atomicRollbackJobId],
+  ).catch(() => undefined);
+  await pool.query(
+    'DELETE FROM outbox_events WHERE id IN ($1, $2, $3, $4)',
+    [outboxId, rollbackOutboxId, atomicEventId, atomicRollbackEventId],
+  ).catch(() => undefined);
   await pool.query('DELETE FROM projects WHERE id = $1', [projectId]).catch(() => undefined);
   await pool.end();
 }
