@@ -27,25 +27,25 @@ Delivered:
 
 Exit condition: architecture compiles and the core module boundaries are enforceable.
 
-## M1 — Executable vertical slice — active
+## M1 — Executable vertical slice — complete
 
 Goal: make `API -> queue -> runner -> worker/provider port -> event` executable with deterministic retry behavior and tests before introducing durable infrastructure.
 
-In this milestone:
+Delivered:
 
 - [x] Queue idempotency and leasing reference implementation.
 - [x] Queue job inspection for operational/job-status use cases.
 - [x] Prevent lease recovery from exceeding `maxAttempts`; exhausted jobs go to dead letter.
 - [x] Generic orchestrator queue runner with lifecycle events, retries, and dead-letter result.
 - [x] Dependency-light tests that run through the existing single CI workflow.
-- [x] Add API job-status query with project authorization and a minimal non-sensitive status projection.
-- [ ] Add an application composition root that wires API, queue runner, and in-memory adapters into a runnable local demo.
-- [ ] Add end-to-end smoke scenario for one media job and one publish job using fake provider/executor adapters.
-- [ ] Generate and commit `pnpm-lock.yaml`, then switch CI installation to frozen lockfile and enable dependency caching.
+- [x] API job-status query with project authorization and a minimal non-sensitive status projection.
+- [x] Application composition root wiring API, queue runner, and in-memory adapters into a runnable local runtime.
+- [x] End-to-end smoke scenario for one media job and one publish job using fake provider/executor adapters.
+- [x] Committed `pnpm-lock.yaml`, frozen-lockfile CI install, and pnpm dependency caching.
 
-Exit condition: a command can enter through the API facade, execute through a queue-backed runner, emit lifecycle events, and be asserted end-to-end without external infrastructure.
+Exit condition met: commands enter through the API facade, execute through queue-backed runners, emit lifecycle events, and are asserted end-to-end without external infrastructure.
 
-## M2 — Durable local-first backbone — active in parallel
+## M2 — Durable local-first backbone — active
 
 Goal: replace only the persistence points required by the M1 vertical slice while preserving all public contracts.
 
@@ -55,9 +55,10 @@ Progress:
 - [x] Durable queue leasing with `FOR UPDATE SKIP LOCKED`, inspection, retry/dead-letter semantics, and final-lease exhaustion protection.
 - [x] Transaction helper so durable state and outbox writes can share one PostgreSQL transaction.
 - [x] Advisory-locked SQL migration runner and local PostgreSQL Docker Compose bootstrap with healthcheck.
-- [ ] S3-compatible object-store adapter, with MinIO/local filesystem for development and a cloud-compatible backend for deployment.
-- [ ] Backup/restore notes and operational health endpoints for the durable runtime.
-- [ ] Wire the durable adapters through an application composition root after the in-memory vertical slice is proven.
+- [ ] Wire the durable adapters through an application composition root behind the same ports.
+- [ ] Add an S3-compatible object-store adapter, with MinIO/local filesystem for development and a cloud-compatible backend for deployment.
+- [ ] Add targeted PostgreSQL integration gating once the runtime composition depends on durable persistence.
+- [ ] Add backup/restore notes and operational health endpoints for the durable runtime.
 
 Exit condition: restart-safe execution with no loss of queued work or workflow metadata.
 
@@ -137,11 +138,11 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Add the application composition root and prove one in-memory media + publish end-to-end scenario.
-2. Commit a lockfile and tighten the existing CI rather than adding more workflows.
-3. Wire PostgreSQL adapters into the composition root behind the same ports.
-4. Add the first S3-compatible object-store adapter.
-5. Add the first real media executor, then the first real publishing adapter.
+1. Wire PostgreSQL adapters into the runtime composition behind the existing ports.
+2. Add the first S3-compatible object-store adapter.
+3. Add a targeted durable integration gate without turning PostgreSQL into a cost on every unrelated PR.
+4. Add the first real media executor (FFmpeg) with strict sandbox/resource limits.
+5. Add the first real publishing adapter and prove idempotent reconciliation.
 6. Add event-based operational views before expanding RAG/MCP automation.
 
 Do not start RAG/MCP-heavy automation or broad platform integrations before the durable execution/event path is trustworthy; otherwise they amplify an unstable substrate instead of improving it.
