@@ -54,6 +54,28 @@ export class Orchestrator {
 
 export type QueueJobHandler<TPayload> = (job: QueueJob<TPayload>) => Promise<void>;
 
+export interface QueueSettlementPort {
+  complete(jobId: string, event: EventEnvelope): Promise<void>;
+  fail(jobId: string, error: string, retryAt: string, event: EventEnvelope): Promise<void>;
+}
+
+class DirectQueueSettlement implements QueueSettlementPort {
+  constructor(
+    private readonly queue: JobQueue,
+    private readonly eventBus: EventBusPort,
+  ) {}
+
+  async complete(jobId: string, event: EventEnvelope): Promise<void> {
+    await this.queue.complete(jobId);
+    await this.eventBus.publish(event);
+  }
+
+  async fail(jobId: string, error: string, retryAt: string, event: EventEnvelope): Promise<void> {
+    await this.queue.fail(jobId, error, retryAt);
+    await this.eventBus.publish(event);
+  }
+}
+
 export interface QueueRunnerOptions {
   workerId: string;
   leaseMs?: number;
@@ -61,6 +83,7 @@ export interface QueueRunnerOptions {
   maxRetryMs?: number;
   now?: () => Date;
   idFactory?: () => string;
+  settlement?: QueueSettlementPort;
 }
 
 export type QueueRunResult =
@@ -76,6 +99,7 @@ export class QueueRunner {
   private readonly maxRetryMs: number;
   private readonly now: () => Date;
   private readonly idFactory: () => string;
+  private readonly settlement: QueueSettlementPort;
 
   constructor(
     private readonly queue: JobQueue,
@@ -93,6 +117,7 @@ export class QueueRunner {
     this.maxRetryMs = options.maxRetryMs ?? 15 * 60_000;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
+    this.settlement = options.settlement ?? new DirectQueueSettlement(queue, eventBus);
   }
 
   async runOnce<TPayload>(queueName: string, handler: QueueJobHandler<TPayload>): Promise<QueueRunResult> {
@@ -106,11 +131,11 @@ export class QueueRunner {
 
     try {
       await handler(job);
-      await this.queue.complete(job.id);
       const completedAt = this.now().toISOString();
-      await this.publishLifecycleEvent("job.execution.completed", job, completedAt, {
+      const event = this.lifecycleEvent("job.execution.completed", job, completedAt, {
         status: "completed",
       });
+      await this.settlement.complete(job.id, event);
       return { kind: "completed", queue: queueName, jobId: job.id, attempt: job.attempts };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -119,13 +144,13 @@ export class QueueRunner {
       const retryAt = new Date(
         failedAt.getTime() + retryDelayMs(job.attempts, this.baseRetryMs, this.maxRetryMs),
       ).toISOString();
-
-      await this.queue.fail(job.id, message, retryAt);
-      await this.publishLifecycleEvent("job.execution.failed", job, failedAt.toISOString(), {
+      const event = this.lifecycleEvent("job.execution.failed", job, failedAt.toISOString(), {
         status: deadLetter ? "dead-letter" : "retry-scheduled",
         error: message,
         ...(deadLetter ? {} : { retryAt }),
       });
+
+      await this.settlement.fail(job.id, message, retryAt, event);
 
       if (deadLetter) {
         return { kind: "dead-letter", queue: queueName, jobId: job.id, attempt: job.attempts, error: message };
@@ -142,13 +167,13 @@ export class QueueRunner {
     }
   }
 
-  private async publishLifecycleEvent(
+  private lifecycleEvent(
     type: "job.execution.started" | "job.execution.completed" | "job.execution.failed",
     job: QueueJob,
     occurredAt: string,
     detail: Record<string, string>,
-  ): Promise<void> {
-    await this.eventBus.publish({
+  ): EventEnvelope {
+    return {
       id: this.idFactory(),
       type,
       version: 1,
@@ -162,7 +187,16 @@ export class QueueRunner {
         maxAttempts: job.maxAttempts,
         ...detail,
       },
-    });
+    };
+  }
+
+  private async publishLifecycleEvent(
+    type: "job.execution.started" | "job.execution.completed" | "job.execution.failed",
+    job: QueueJob,
+    occurredAt: string,
+    detail: Record<string, string>,
+  ): Promise<void> {
+    await this.eventBus.publish(this.lifecycleEvent(type, job, occurredAt, detail));
   }
 }
 
