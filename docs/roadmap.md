@@ -1,6 +1,6 @@
 # VideoOS roadmap
 
-Current status: 2026-09-16
+Current status: 2026-09-17
 
 This roadmap keeps the ponytail core small while turning the architecture into an executable, observable media control plane. Each milestone should leave the repository runnable and should avoid adding infrastructure or GitHub Actions workflows before a real execution path needs them.
 
@@ -69,18 +69,21 @@ Delivered:
 
 Exit condition met: source asset -> deterministic derived video/image asset works locally and through a worker node with reproducible metadata/lineage.
 
-## M4 — Multi-network publishing — active
+## M4 — Multi-network publishing and controlled launch — active
 
-Goal: publish the same canonical content package through independent network adapters.
+Goal: make the first deterministic publishing path operationally trustworthy, then expose a controlled alpha before expanding provider breadth.
 
 - [x] `VID-11`: first production adapter implemented for YouTube with a capability matrix, trusted object-store asset loading, resumable upload, server-side credential boundary, durable attempt journal, normalized receipts, retry/rate-limit translation and exact reconciliation.
-- [ ] `VID-12`: add refresh-capable YouTube OAuth onboarding, credential rotation/disconnect and an explicit manual live-provider smoke path.
+- [x] `VID-12` implementation: refresh-capable server-side YouTube OAuth onboarding, credential rotation/disconnect, secret-safe diagnostics and explicit opt-in live-provider smoke tooling are merged.
+- [ ] `VID-12` external verification: run the real private-upload/reconciliation smoke against a dedicated test channel and record non-secret evidence/constraints.
 - [x] First-adapter provider logic stays outside publisher core and uses the same queue retry/max-attempt authority.
 - [x] First-adapter automated tests use fake transports; live provider credentials are not a CI dependency.
-- [ ] Manual approval/scheduling policies before autonomous bulk publishing.
+- [x] `VID-13`: explicit project-authorized publish approval, audit-preserved internal approval metadata, asset ownership checks, schedule timestamp validation and repository-owned launch readiness checks.
+- [x] `VID-14`: dependency-free read-only web launch cockpit derived only from canonical repository state; no provider mutation or business logic in the UI shell.
+- [ ] `VID-15`: package the cockpit as a localhost-only, non-root, read-only controlled-alpha container with no new managed service or CI workflow.
 - [ ] Add a second network adapter only after the first live YouTube path is verified or explicitly waived by a recorded decision.
 
-Exit condition: at least two network adapters use the same publisher core without forks and their credential/reconciliation paths are operationally verified.
+M4 controlled-alpha exit condition: the read-only operator surface is deployable, publish safety gates are enforced, and the YouTube live path has recorded external verification. Multi-network breadth may continue after this launch gate; it is not required to delay the first controlled alpha.
 
 ## M5 — Observability and flywheel
 
@@ -105,24 +108,27 @@ Goal: expose useful runtime/product context and bounded tools without turning th
 
 Exit condition: agents can retrieve context and invoke bounded tools without bypassing deterministic system boundaries.
 
-## M7 — Product surface, deployment, and scale
+## M7 — Authenticated product surface, deployment, and scale
 
-- Web control plane for projects, assets, workflows, schedules, jobs, approvals, analytics and adapter connections.
+A small deployment/readiness slice has been intentionally pulled forward into M4 to accelerate controlled launch. M7 remains the full productization milestone.
+
+- Authenticated web control plane for projects, assets, workflows, schedules, jobs, approvals, analytics and adapter connections.
 - Environment promotion/release process.
-- GHCR/GitHub Packages only when deployable artifacts exist; Pages only for docs/status/static material when useful.
-- Deployment adapters for selected hosting targets.
+- GHCR/GitHub Packages only when versioned deployable artifacts are useful; Pages only for docs/status/static material when useful.
+- Deployment adapters for selected hosting targets and authenticated ingress/TLS boundaries for non-local exposure.
 - Horizontal scaling, partitioning, rate-limit coordination and tenant quotas only when metrics justify them.
 - Security review, audit trails, secret rotation, retention and incident runbooks.
 
-Exit condition: the platform can be operated and upgraded without coupling product logic to one deployment vendor.
+Exit condition: the platform can be operated and upgraded without coupling product logic to one deployment vendor and can be exposed beyond controlled operator access behind explicit authentication/security boundaries.
 
 ## Immediate execution order
 
-1. Complete `VID-12`: server-side YouTube OAuth refresh/onboarding plus an explicit manual private-upload/reconciliation smoke test.
-2. Record live-provider results and operational constraints; do not place OAuth secrets in CI.
-3. Add manual approval/scheduling policy before autonomous or bulk publishing.
-4. Add a second network adapter only after the YouTube live path is verified or a waiver is recorded.
-5. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block runtime work on this manual step.
-6. Add event-based operational views before expanding product RAG/MCP automation.
+1. Complete `VID-15` controlled-alpha packaging and keep the cockpit localhost/private by default.
+2. Run and record `VID-12` real YouTube private-upload/reconciliation verification on a trusted operator host; OAuth secrets remain outside CI/repository state.
+3. Run `pnpm launch:check`; do not call the publishing path launch-verified until the canonical gate is green or an explicit waiver decision exists.
+4. Build the minimum authenticated product surface needed for non-operator users; do not expose the current read-only alpha cockpit directly to the public internet.
+5. Add event-based M5 operational views immediately after first real usage so retry/failure/latency/cost evidence guides the next expansion.
+6. Add a second publishing adapter only after the YouTube live gate is verified or waived; provider count is no longer a prerequisite for the first controlled alpha.
+7. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block launch/runtime work on this manual step.
 
 Do not start broad product RAG/MCP automation or many provider integrations before deterministic publishing behavior is trustworthy. Engineering Project Brain work may continue in parallel because it is developer tooling and derived repository intelligence, not a runtime dependency.
