@@ -1,0 +1,14 @@
+{
+  "name": "@videoos/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@videoos/contracts": "workspace:*",
+    "@videoos/identity": "workspace:*",
+    "@videoos/storage": "workspace:*",
+    "@videoos/job-queue": "workspace:*"
+  },
+  "devDependencies": { "typescript": "^5.9.2" }
+}
