@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "node --import tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "youtube:live-smoke": "node --import tsx scripts/youtube-live-smoke.ts"
   },
   "dependencies": {
     "@videoos/contracts": "workspace:*",
