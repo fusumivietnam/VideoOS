@@ -3,29 +3,46 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import {
+  clearSessionCookie,
+  createAlphaAuthConfig,
+  issueSession,
+  readSessionCookie,
+  sessionCookie,
+  verifyAccessCode,
+  verifySession,
+} from './auth.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 
 const STATIC_FILES = new Map([
-  ['/', ['index.html', 'text/html; charset=utf-8']],
-  ['/index.html', ['index.html', 'text/html; charset=utf-8']],
-  ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
-  ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
+  ['/', ['index.html', 'text/html; charset=utf-8', true]],
+  ['/index.html', ['index.html', 'text/html; charset=utf-8', true]],
+  ['/login.html', ['login.html', 'text/html; charset=utf-8', false]],
+  ['/app.js', ['app.js', 'text/javascript; charset=utf-8', false]],
+  ['/login.js', ['login.js', 'text/javascript; charset=utf-8', false]],
+  ['/styles.css', ['styles.css', 'text/css; charset=utf-8', false]],
 ]);
 
 const COMMON_HEADERS = {
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
   'x-frame-options': 'DENY',
-  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
 };
 
 export function createControlPlaneServer(options = {}) {
   const repoRoot = options.repoRoot ?? resolve(here, '..', '..');
   const publicDir = options.publicDir ?? join(here, 'public');
+  const authConfig = options.authConfig === undefined
+    ? createAlphaAuthConfig(options.env ?? process.env)
+    : options.authConfig;
+  const now = options.now ?? Date.now;
 
   return createServer(async (request, response) => {
     const method = request.method ?? 'GET';
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    const authenticated = !authConfig || verifySession(readSessionCookie(request.headers.cookie), authConfig, now());
 
     try {
       if (method === 'GET' && url.pathname === '/health') {
@@ -33,14 +50,60 @@ export function createControlPlaneServer(options = {}) {
         return;
       }
 
+      if (method === 'GET' && url.pathname === '/api/session') {
+        sendJson(response, 200, { protected: Boolean(authConfig), authenticated });
+        return;
+      }
+
+      if (method === 'POST' && url.pathname === '/auth/login') {
+        if (!authConfig) {
+          sendJson(response, 404, { error: 'not_found' });
+          return;
+        }
+        const body = await readBoundedJson(request, 4096);
+        if (!verifyAccessCode(body?.accessCode, authConfig)) {
+          sendJson(response, 401, { error: 'invalid_credentials' });
+          return;
+        }
+        const token = issueSession(authConfig, now());
+        sendJson(response, 200, { authenticated: true }, {
+          'set-cookie': sessionCookie(token, authConfig),
+        });
+        return;
+      }
+
+      if (method === 'POST' && url.pathname === '/auth/logout') {
+        if (!authConfig) {
+          sendJson(response, 404, { error: 'not_found' });
+          return;
+        }
+        sendJson(response, 200, { authenticated: false }, {
+          'set-cookie': clearSessionCookie(authConfig),
+        });
+        return;
+      }
+
       if (method === 'GET' && url.pathname === '/api/launch-state') {
+        if (!authenticated) {
+          sendJson(response, 401, { error: 'authentication_required' });
+          return;
+        }
         const state = await deriveLaunchState(repoRoot);
         sendJson(response, 200, state, { 'cache-control': 'no-store' });
         return;
       }
 
       if (method === 'GET' && STATIC_FILES.has(url.pathname)) {
-        const [fileName, contentType] = STATIC_FILES.get(url.pathname);
+        const [fileName, contentType, requiresAuth] = STATIC_FILES.get(url.pathname);
+        if (requiresAuth && !authenticated) {
+          response.writeHead(302, {
+            ...COMMON_HEADERS,
+            location: '/login.html',
+            'cache-control': 'no-store',
+          });
+          response.end();
+          return;
+        }
         const body = await readFile(join(publicDir, fileName));
         response.writeHead(200, {
           ...COMMON_HEADERS,
@@ -53,6 +116,10 @@ export function createControlPlaneServer(options = {}) {
 
       sendJson(response, 404, { error: 'not_found' });
     } catch (error) {
+      if (error instanceof RequestBodyError) {
+        sendJson(response, error.status, { error: error.code });
+        return;
+      }
       sendJson(response, 500, {
         error: 'control_plane_failed',
         message: bounded(error instanceof Error ? error.message : String(error)),
@@ -109,6 +176,11 @@ export async function deriveLaunchState(repoRoot) {
   };
 }
 
+export function assertSafeBind(host, authConfig, allowUnauthenticatedNonLoopback = false) {
+  if (isLoopbackHost(host) || authConfig || allowUnauthenticatedNonLoopback) return;
+  throw new Error('refusing unauthenticated non-loopback web bind; enable protected mode or explicitly allow the container-local bind');
+}
+
 function findTask(taskNames, prefix) {
   const match = taskNames.find((name) => name.toLowerCase().startsWith(prefix));
   if (!match) throw new Error(`canonical task missing: ${prefix.trim()}`);
@@ -121,6 +193,24 @@ function checkboxDone(markdown, number) {
 
 function taskStatus(markdown) {
   return markdown.match(/^status:\s*(.+)$/m)?.[1]?.trim();
+}
+
+async function readBoundedJson(request, maxBytes) {
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    bytes += chunk.length;
+    if (bytes > maxBytes) throw new RequestBodyError(413, 'request_too_large');
+    chunks.push(chunk);
+  }
+  if (!chunks.length) throw new RequestBodyError(400, 'invalid_json');
+  try {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid');
+    return parsed;
+  } catch {
+    throw new RequestBodyError(400, 'invalid_json');
+  }
 }
 
 function sendJson(response, status, value, extraHeaders = {}) {
@@ -137,13 +227,27 @@ function bounded(value) {
   return value.replace(/[\r\n]+/g, ' ').slice(0, 400);
 }
 
+function isLoopbackHost(host) {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
+}
+
+class RequestBodyError extends Error {
+  constructor(status, code) {
+    super(code);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 const executedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (executedDirectly) {
   const host = process.env.VIDEOOS_WEB_HOST?.trim() || '127.0.0.1';
   const port = parsePort(process.env.VIDEOOS_WEB_PORT);
-  const server = createControlPlaneServer();
+  const authConfig = createAlphaAuthConfig(process.env);
+  assertSafeBind(host, authConfig, process.env.VIDEOOS_WEB_ALLOW_UNAUTHENTICATED_NON_LOOPBACK === '1');
+  const server = createControlPlaneServer({ authConfig });
   server.listen(port, host, () => {
-    process.stdout.write(`VideoOS control plane listening on http://${host}:${port}\n`);
+    process.stdout.write(`VideoOS control plane listening on http://${host}:${port}${authConfig ? ' (protected)' : ' (localhost alpha)'}\n`);
   });
 }
 
