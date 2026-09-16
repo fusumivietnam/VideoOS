@@ -69,7 +69,7 @@ interface AssetRow extends QueryResultRow {
   content_type: string;
   bytes: string | number;
   checksum_sha256: string | null;
-  metadata: AssetRecord['metadata'] | null;
+  metadata: NonNullable<AssetRecord['metadata']> | null;
   created_at: Date | string;
 }
 
