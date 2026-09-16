@@ -1,4 +1,4 @@
-import type { PublishRequest } from '@videoos/contracts';
+import type { MediaTransformRequest, PublishRequest } from '@videoos/contracts';
 import type { JobQueue, QueueJobStatus } from '@videoos/job-queue';
 import type { MembershipRepository, Principal } from '@videoos/identity';
 import { authorizeProjectCapability } from '@videoos/identity';
@@ -15,12 +15,15 @@ export interface CreatePublishCommand {
   request: PublishRequest;
 }
 
-export interface CreateMediaJobCommand {
-  principal: Principal;
+export interface MediaJobPayload {
   projectId: string;
-  jobId: string;
   assetId: string;
-  transform: Record<string, unknown>;
+  transform: Omit<MediaTransformRequest, 'sourceAssetId'>;
+}
+
+export interface CreateMediaJobCommand extends MediaJobPayload {
+  principal: Principal;
+  jobId: string;
 }
 
 export interface JobStatusView {
@@ -83,11 +86,12 @@ export class VideoOsApi {
     const asset = await this.dependencies.assets.getById(command.assetId);
     if (!asset || asset.projectId !== command.projectId) throw new Error('asset not found in project');
 
-    await this.dependencies.jobs.enqueue('media', command.jobId, {
+    const payload: MediaJobPayload = {
       projectId: command.projectId,
       assetId: command.assetId,
       transform: command.transform,
-    });
+    };
+    await this.dependencies.jobs.enqueue('media', command.jobId, payload);
     return { jobId: command.jobId };
   }
 }
