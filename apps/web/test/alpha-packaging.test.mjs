@@ -26,6 +26,7 @@ test('alpha Compose publishes only to localhost and applies read-only process bo
   assert.match(compose, /127\.0\.0\.1:3000:3000/);
   assert.match(compose, /read_only:\s*true/);
   assert.match(compose, /no-new-privileges:true/);
+  assert.match(compose, /VIDEOOS_WEB_ALLOW_UNAUTHENTICATED_NON_LOOPBACK:\s*1/);
   assert.equal(/0\.0\.0\.0:3000:3000/.test(compose), false);
 });
 
@@ -34,4 +35,6 @@ test('controlled alpha runbook explicitly rejects direct public exposure', async
   assert.match(runbook, /not.*public product surface/i);
   assert.match(runbook, /Do not expose.*public internet/i);
   assert.match(runbook, /pnpm launch:check/);
+  assert.match(runbook, /VIDEOOS_WEB_ACCESS_CODE/);
+  assert.match(runbook, /VIDEOOS_WEB_SESSION_SECRET/);
 });
