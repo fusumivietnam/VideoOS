@@ -72,20 +72,30 @@ Exit condition: restart-safe execution with no loss of queued work or terminal w
 
 Goal: remove long-term project state from chat memory without making RAG/agent infrastructure a runtime dependency.
 
+Progress:
+
+- [x] Add Backlog.md-compatible filesystem configuration and task records.
+- [x] Add repository-owned decision records for durable engineering choices.
+- [x] Add `.project/state.json` as a machine-readable current-state snapshot.
+- [x] Make `AGENTS.md` direct fresh sessions through state, roadmap, tasks, decisions, architecture, and derived knowledge.
+- [x] Document local Understand Anything usage for Claude Code and Codex without adding runtime/CI dependencies.
+- [x] Ignore local `.ua` scratch while allowing reviewed shareable graph/config artifacts to be committed.
+- [ ] Bootstrap and review the initial `.ua` graph locally in a supported developer environment.
+
 Canonical engineering state:
 
 - Git source/history for implementation truth.
-- Backlog-style task/dependency records for roadmap execution.
-- ADR/decision records for architectural choices and supersession.
+- Backlog task/dependency records for roadmap execution.
+- Decision records for architectural choices and supersession.
 - Spec Kit-style feature specs selectively for larger cross-service changes.
-- A small machine-readable current-state snapshot for agents and automation.
+- `.project/state.json` for a small current-state snapshot that points back to canonical files.
 
 Derived intelligence:
 
-- Install Understand Anything as a local Codex/Claude developer skill/plugin, not a VideoOS runtime package.
-- Generate `.ua` code/knowledge graph artifacts for codebase navigation, semantic search, domain understanding, and change-impact analysis.
-- Treat `.ua` as rebuildable derived state; never let it override Git/backlog/ADR/spec truth.
-- Do not add a GitHub Actions workflow for Understand Anything during this phase.
+- Understand Anything is a local Codex/Claude developer skill/plugin, not a VideoOS runtime package.
+- `.ua` code/knowledge graph artifacts may support codebase navigation, semantic search, domain understanding, and change-impact analysis.
+- `.ua` is rebuildable derived state and never overrides Git/backlog/decision/spec truth.
+- No dedicated GitHub Actions workflow is added for Understand Anything during this phase.
 
 Later boundary:
 
@@ -166,13 +176,12 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Finish and merge atomic PostgreSQL queue settlement + lifecycle outbox handling.
-2. Establish canonical Project Brain state in-repo (task/dependency records, ADRs, current-state snapshot) and document local Understand Anything usage.
-3. Add the first S3-compatible object-store adapter, local-first.
-4. Add a targeted PostgreSQL integration gate inside the existing CI workflow without database cost on unrelated PRs.
-5. Add durable runtime health/readiness plus backup/restore notes and close M2.
-6. Add the first real media executor (FFmpeg) with strict sandbox/resource limits.
-7. Add the first real publishing adapter and prove idempotent reconciliation.
-8. Add event-based operational views before expanding product RAG/MCP automation.
+1. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available; do not block runtime work on this manual step.
+2. Add the first S3-compatible object-store adapter, local-first (`VID-2`).
+3. Add a targeted PostgreSQL integration gate inside the existing CI workflow without database cost on unrelated PRs (`VID-3`).
+4. Add durable runtime health/readiness plus backup/restore notes and close M2 (`VID-4`).
+5. Add the first real media executor (FFmpeg) with strict sandbox/resource limits.
+6. Add the first real publishing adapter and prove idempotent reconciliation.
+7. Add event-based operational views before expanding product RAG/MCP automation.
 
 Do not start broad product RAG/MCP automation or many provider integrations before the durable execution/event path is trustworthy. Engineering Project Brain work is allowed earlier because it is developer tooling and derived repository intelligence, not a dependency of the runtime core.
