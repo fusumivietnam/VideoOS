@@ -5,22 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import type { MediaTransformRequest, PublishRequest } from '@videoos/contracts';
+import type { PublishRequest } from '@videoos/contracts';
+import type { MediaExecutionPlan } from '../../../services/media-worker/src/index.js';
 import { FileSystemObjectStore } from '../src/filesystem-object-store.js';
 import { createInMemoryRuntime } from '../src/index.js';
 
 class FakeMediaExecutor {
-  readonly plans: Array<{
-    sourceAssetId: string;
-    operations: MediaTransformRequest['operations'];
-    output: MediaTransformRequest['output'];
-  }> = [];
+  readonly plans: MediaExecutionPlan[] = [];
 
-  async execute(plan: {
-    sourceAssetId: string;
-    operations: MediaTransformRequest['operations'];
-    output: MediaTransformRequest['output'];
-  }) {
+  async execute(plan: MediaExecutionPlan) {
     this.plans.push(structuredClone(plan));
     return { assetId: 'asset:derived', uri: 'memory://asset-derived.mp4' };
   }
@@ -99,6 +92,11 @@ test('local runtime executes media and publish jobs end to end', async () => {
     assert.equal(mediaExecutor.plans.length, 1);
     assert.equal(mediaExecutor.plans[0]?.sourceAssetId, 'asset:source');
     assert.deepEqual(mediaExecutor.plans[0]?.operations, [{ type: 'trim', startMs: 0, endMs: 5_000 }]);
+    assert.deepEqual(mediaExecutor.plans[0]?.context, {
+      projectId: 'project:one',
+      jobId: 'media:project-one:1',
+      sourceObjectKey: 'projects/project-one/assets/source/source.mp4',
+    });
 
     const publish = await runtime.api.createPublish({
       principal,
