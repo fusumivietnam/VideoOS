@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node -e \"require('node:fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc -p tsconfig.json --outDir .test-dist --declaration false --sourceMap false && node --test test/queue-runner.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@videoos/contracts": "workspace:*"
+    "@videoos/contracts": "workspace:*",
+    "@videoos/job-queue": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.2"

@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "exports": "./src/index.ts",
-  "scripts": { "typecheck": "tsc --noEmit" },
+  "scripts": {
+    "test": "node -e \"require('node:fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc -p tsconfig.json --outDir .test-dist --declaration false --sourceMap false && node --test test/job-queue.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": { "typescript": "^5.9.2" }
 }
