@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import type { MediaOperation } from '@videoos/contracts';
 import type { MediaExecutionPlan, MediaExecutor } from '../../../services/media-worker/src/index.js';
+import type { SubtitleStager } from './subtitle-stager.js';
 
 export interface FfmpegProcessResult {
   exitCode: number | null;
@@ -28,6 +29,7 @@ export interface FfmpegExecutorOptions {
   maxStderrBytes?: number;
   maxOutputBytes?: number;
   runner?: FfmpegProcessRunner;
+  subtitleStager?: SubtitleStager;
   resolveSourcePath?: (plan: MediaExecutionPlan) => Promise<string> | string;
 }
 
@@ -55,6 +57,7 @@ export class FfmpegExecutor implements MediaExecutor {
   private readonly maxStderrBytes: number;
   private readonly maxOutputBytes: number;
   private readonly runner: FfmpegProcessRunner;
+  private readonly subtitleStager?: SubtitleStager;
   private readonly resolveSourcePath: (plan: MediaExecutionPlan) => Promise<string>;
 
   constructor(options: FfmpegExecutorOptions) {
@@ -65,6 +68,7 @@ export class FfmpegExecutor implements MediaExecutor {
     this.maxStderrBytes = positiveInteger(options.maxStderrBytes ?? 64 * 1024, 'FFmpeg maxStderrBytes');
     this.maxOutputBytes = positiveInteger(options.maxOutputBytes ?? 4 * 1024 * 1024 * 1024, 'FFmpeg maxOutputBytes');
     this.runner = options.runner ?? new NodeFfmpegProcessRunner();
+    this.subtitleStager = options.subtitleStager;
     this.resolveSourcePath = async (plan) => {
       const value = options.resolveSourcePath
         ? await options.resolveSourcePath(plan)
@@ -93,7 +97,18 @@ export class FfmpegExecutor implements MediaExecutor {
     assertResolvedInsideSandbox(this.sandboxRoot, outputPath);
     await removeExistingRegularOutput(outputPath);
 
-    const args = buildFfmpegArgs(plan, sourcePath, outputPath);
+    const stagedSubtitles = new Map<string, string>();
+    for (const operation of plan.operations) {
+      if (operation.type !== 'burn-subtitles') continue;
+      if (!this.subtitleStager) {
+        throw new FfmpegExecutionError('unsupported-operation', 'burn-subtitles requires a configured subtitle stager');
+      }
+      const stagedPath = await this.subtitleStager.stage(operation.subtitleAssetId, plan);
+      await assertExistingPathInsideSandbox(this.sandboxRoot, stagedPath);
+      stagedSubtitles.set(operation.subtitleAssetId, stagedPath);
+    }
+
+    const args = buildFfmpegArgs(plan, sourcePath, outputPath, stagedSubtitles);
     let result: FfmpegProcessResult;
     try {
       result = await this.runner.run(this.binary, args, {
@@ -181,7 +196,12 @@ export class NodeFfmpegProcessRunner implements FfmpegProcessRunner {
   }
 }
 
-export function buildFfmpegArgs(plan: MediaExecutionPlan, inputPath: string, outputPath: string): string[] {
+export function buildFfmpegArgs(
+  plan: MediaExecutionPlan,
+  inputPath: string,
+  outputPath: string,
+  stagedSubtitles: ReadonlyMap<string, string> = new Map(),
+): string[] {
   requireExecutionContext(plan);
   const trimOperations = plan.operations.filter((operation) => operation.type === 'trim');
   if (trimOperations.length > 1) {
@@ -190,13 +210,9 @@ export function buildFfmpegArgs(plan: MediaExecutionPlan, inputPath: string, out
 
   const args = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-protocol_whitelist', 'file,pipe'];
   const trim = trimOperations[0];
-  if (trim?.type === 'trim') {
-    args.push('-ss', seconds(trim.startMs));
-  }
+  if (trim?.type === 'trim') args.push('-ss', seconds(trim.startMs));
   args.push('-i', inputPath);
-  if (trim?.type === 'trim') {
-    args.push('-t', seconds(trim.endMs - trim.startMs));
-  }
+  if (trim?.type === 'trim') args.push('-t', seconds(trim.endMs - trim.startMs));
 
   const videoFilters: string[] = [];
   const audioFilters: string[] = [];
@@ -219,11 +235,14 @@ export function buildFfmpegArgs(plan: MediaExecutionPlan, inputPath: string, out
         }
         audioFilters.push(`loudnorm=I=${operation.targetLufs}`);
         break;
-      case 'burn-subtitles':
-        throw new FfmpegExecutionError(
-          'unsupported-operation',
-          'burn-subtitles requires subtitle asset staging and is not enabled in the first FFmpeg executor',
-        );
+      case 'burn-subtitles': {
+        const stagedPath = stagedSubtitles.get(operation.subtitleAssetId);
+        if (!stagedPath) {
+          throw new FfmpegExecutionError('unsupported-operation', 'burn-subtitles requires a staged subtitle asset');
+        }
+        videoFilters.push(`subtitles='${escapeSubtitleFilterPath(stagedPath)}'`);
+        break;
+      }
       default: {
         const exhaustive: never = operation;
         throw new FfmpegExecutionError('unsupported-operation', `unsupported media operation: ${String(exhaustive)}`);
@@ -261,6 +280,7 @@ export function buildOutputIdentity(plan: MediaExecutionPlan): { hash: string; a
     jobId: context.jobId,
     sourceAssetId: plan.sourceAssetId,
     sourceObjectKey: context.sourceObjectKey,
+    preset: plan.preset,
     operations: plan.operations,
     output: plan.output,
   });
@@ -277,6 +297,17 @@ function resizeFilter(operation: Extract<MediaOperation, { type: 'resize' }>): s
     return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
   }
   return `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`;
+}
+
+function escapeSubtitleFilterPath(path: string): string {
+  return path
+    .replace(/\\/g, '/')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]');
 }
 
 function mapVideoCodec(codec: string): string {
