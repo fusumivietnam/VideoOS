@@ -5,9 +5,9 @@
   "milestoneName": "Media production path",
   "status": "active",
   "currentFocus": [
-    "add the first production FFmpeg executor with strict sandboxing and resource limits",
-    "add probe/metadata extraction and derived-asset lineage",
-    "bootstrap the Understand Anything derived graph locally without blocking runtime work"
+    "VID-6 production FFmpeg executor with strict sandboxing and resource limits",
+    "VID-7 probe/metadata extraction and derived-asset lineage",
+    "VID-5 bootstrap the Understand Anything derived graph locally without blocking runtime work"
   ],
   "completedMilestones": ["M0", "M1", "M2"],
   "completedCapabilities": [
@@ -24,7 +24,7 @@
     "PostgreSQL plus filesystem/S3-compatible backup and recovery guidance"
   ],
   "blockers": [],
-  "nextTasks": ["M3-FFMPEG", "M3-PROBE-LINEAGE", "VID-5"],
+  "nextTasks": ["VID-6", "VID-7", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
