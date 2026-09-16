@@ -17,6 +17,7 @@ export interface MediaExecutor {
 export interface MediaExecutionPlan {
   sourceAssetId: string;
   preset?: MediaTransformRequest["preset"];
+  frame?: MediaTransformRequest["frame"];
   operations: MediaOperation[];
   output: MediaTransformRequest["output"];
   context?: MediaExecutionContext;
@@ -33,16 +34,18 @@ export function buildExecutionPlan(
     if (operation.type === "resize" && (operation.width <= 0 || operation.height <= 0)) {
       throw new Error("resize dimensions must be positive");
     }
-    if (operation.type === "extract-frame") {
-      if (operation.atMs !== undefined && (!Number.isFinite(operation.atMs) || operation.atMs < 0)) {
-        throw new Error("extract-frame.atMs must be non-negative");
-      }
-      if ((operation.width === undefined) !== (operation.height === undefined)) {
-        throw new Error("extract-frame width and height must be provided together");
-      }
-      if ((operation.width !== undefined && operation.width <= 0) || (operation.height !== undefined && operation.height <= 0)) {
-        throw new Error("extract-frame dimensions must be positive");
-      }
+  }
+
+  if (request.frame) {
+    if (request.operations.length) throw new Error("frame extraction cannot be combined with media operations");
+    if (request.frame.atMs !== undefined && (!Number.isFinite(request.frame.atMs) || request.frame.atMs < 0)) {
+      throw new Error("frame.atMs must be non-negative");
+    }
+    if ((request.frame.width === undefined) !== (request.frame.height === undefined)) {
+      throw new Error("frame width and height must be provided together");
+    }
+    if ((request.frame.width !== undefined && request.frame.width <= 0) || (request.frame.height !== undefined && request.frame.height <= 0)) {
+      throw new Error("frame dimensions must be positive");
     }
   }
 
@@ -59,6 +62,7 @@ export function buildExecutionPlan(
   return {
     sourceAssetId: request.sourceAssetId,
     ...(request.preset ? { preset: { ...request.preset } } : {}),
+    ...(request.frame ? { frame: { ...request.frame } } : {}),
     operations: [...request.operations],
     output: { ...request.output },
     ...(context ? { context: { ...context } } : {}),
