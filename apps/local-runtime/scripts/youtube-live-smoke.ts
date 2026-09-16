@@ -108,9 +108,9 @@ main().catch((error: unknown) => {
 
 function redact(value: string): string {
   const secrets = [
-    process.env.YOUTUBE_CLIENT_SECRET,
-    process.env.YOUTUBE_REFRESH_TOKEN,
-    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.VIDEOOS_YOUTUBE_CLIENT_SECRET,
+    process.env.VIDEOOS_YOUTUBE_REFRESH_TOKEN,
+    process.env.VIDEOOS_YOUTUBE_AUTH_CODE,
   ].filter((secret): secret is string => Boolean(secret && secret.length >= 4));
   return secrets.reduce((output, secret) => output.split(secret).join('[REDACTED]'), value).slice(0, 800);
 }
