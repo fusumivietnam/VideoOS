@@ -62,9 +62,15 @@ test('local runtime executes media and publish jobs end to end', async () => {
 
   const lifecycle: string[] = [];
   const unsubscribers = [
-    runtime.events.subscribe('job.execution.started', (event) => lifecycle.push(event.type)),
-    runtime.events.subscribe('job.execution.completed', (event) => lifecycle.push(event.type)),
-    runtime.events.subscribe('job.execution.failed', (event) => lifecycle.push(event.type)),
+    runtime.events.subscribe('job.execution.started', (event) => {
+      lifecycle.push(event.type);
+    }),
+    runtime.events.subscribe('job.execution.completed', (event) => {
+      lifecycle.push(event.type);
+    }),
+    runtime.events.subscribe('job.execution.failed', (event) => {
+      lifecycle.push(event.type);
+    }),
   ];
 
   try {
