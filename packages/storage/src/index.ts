@@ -26,6 +26,31 @@ export interface ObjectStore {
   signedReadUrl(key: string, expiresInSeconds: number): Promise<string>;
 }
 
+export class InMemoryObjectStore implements ObjectStore {
+  private readonly objects = new Map<string, Uint8Array>();
+
+  async put(input: PutObjectInput): Promise<void> {
+    this.objects.set(input.key, new Uint8Array(input.body));
+  }
+
+  async get(key: string): Promise<Uint8Array | null> {
+    const body = this.objects.get(key);
+    return body ? new Uint8Array(body) : null;
+  }
+
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
+
+  async signedReadUrl(key: string, expiresInSeconds: number): Promise<string> {
+    if (!this.objects.has(key)) throw new Error(`object not found: ${key}`);
+    if (!Number.isSafeInteger(expiresInSeconds) || expiresInSeconds <= 0) {
+      throw new Error('expiresInSeconds must be a positive integer');
+    }
+    return `memory://object/${encodeURIComponent(key)}?expiresIn=${expiresInSeconds}`;
+  }
+}
+
 export interface AssetRepository {
   create(asset: AssetRecord): Promise<void>;
   getById(id: string): Promise<AssetRecord | null>;
