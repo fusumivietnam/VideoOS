@@ -3,12 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 import { buildProjectObjectKey, type AssetRecord, type AssetRepository, type ObjectStore } from '@videoos/storage';
-import {
-  canonicalTransformJson,
-  type MediaArtifactFinalizeInput,
-  type MediaArtifactFinalizer,
-  type MediaProbe,
-} from './media-artifact.js';
+import type { MediaArtifactFinalizeInput, MediaArtifactFinalizer, MediaProbe } from './media-artifact.js';
 import { REPRESENTATIVE_FRAME_DEFAULT_MS } from './thumbnail-executor.js';
 
 export class ThumbnailAssetFinalizer implements MediaArtifactFinalizer {
@@ -37,7 +32,7 @@ export class ThumbnailAssetFinalizer implements MediaArtifactFinalizer {
     if (!info.isFile()) throw new Error('thumbnail output is not a regular file');
 
     const checksumSha256 = createHash('sha256').update(body).digest('hex');
-    const transformJson = canonicalTransformJson(input.transform);
+    const transformJson = canonicalThumbnailTransformJson(input.transform);
     const transformHash = createHash('sha256').update(transformJson).digest('hex');
     const objectKey = buildProjectObjectKey(input.projectId, input.result.assetId, `thumbnail.${format.extension}`);
 
@@ -100,6 +95,15 @@ export class RoutedMediaArtifactFinalizer implements MediaArtifactFinalizer {
   finalize(input: MediaArtifactFinalizeInput): Promise<AssetRecord> {
     return input.transform.frame ? this.thumbnail.finalize(input) : this.video.finalize(input);
   }
+}
+
+function canonicalThumbnailTransformJson(transform: MediaArtifactFinalizeInput['transform']): string {
+  return JSON.stringify({
+    preset: transform.preset,
+    frame: transform.frame,
+    operations: transform.operations,
+    output: transform.output,
+  });
 }
 
 function imageFormat(container: string): { extension: 'jpg' | 'png'; contentType: string } {
