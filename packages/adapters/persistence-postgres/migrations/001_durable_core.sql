@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS projects (
   id text PRIMARY KEY,
   name text NOT NULL,
@@ -50,5 +48,3 @@ CREATE TABLE IF NOT EXISTS outbox_events (
   attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0)
 );
 CREATE INDEX IF NOT EXISTS outbox_events_pending_idx ON outbox_events(created_at, id) WHERE delivered_at IS NULL;
-
-COMMIT;
