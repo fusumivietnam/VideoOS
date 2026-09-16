@@ -7,7 +7,7 @@ import {
   PostgresJobQueue,
   PostgresMembershipRepository,
   withTransaction,
-} from '../src/index.ts';
+} from '../src/index.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is required');
