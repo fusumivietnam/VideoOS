@@ -17,6 +17,7 @@ import {
   PublisherService,
   type NetworkPublisherAdapter,
 } from '../../../services/publisher/src/index.js';
+import type { MediaArtifactFinalizer } from './media-artifact.js';
 
 export interface RuntimePorts {
   memberships: MembershipRepository;
@@ -27,6 +28,9 @@ export interface RuntimePorts {
 
 export interface RuntimeExecutionOptions {
   mediaExecutor: MediaExecutor;
+  mediaArtifactFinalizer?: MediaArtifactFinalizer;
+  mediaExecutorName?: string;
+  mediaExecutorVersion?: string;
   publisherAdapters: NetworkPublisherAdapter[];
   publisherIdempotency: IdempotencyStore;
   queueSettlement?: QueueSettlementPort;
@@ -60,7 +64,7 @@ export function createRuntime<TPorts extends RuntimePorts>(
           throw new Error('media source asset not found in project');
         }
 
-        await mediaWorker.transform(
+        const result = await mediaWorker.transform(
           {
             sourceAssetId: payload.assetId,
             operations: payload.transform.operations,
@@ -72,6 +76,18 @@ export function createRuntime<TPorts extends RuntimePorts>(
             sourceObjectKey: source.objectKey,
           },
         );
+
+        if (options.mediaArtifactFinalizer) {
+          await options.mediaArtifactFinalizer.finalize({
+            projectId: payload.projectId,
+            jobId: job.id,
+            sourceAssetId: payload.assetId,
+            transform: payload.transform,
+            result,
+            executor: options.mediaExecutorName ?? 'media-executor',
+            ...(options.mediaExecutorVersion ? { executorVersion: options.mediaExecutorVersion } : {}),
+          });
+        }
       });
     },
     async runPublishOnce() {
@@ -85,6 +101,9 @@ export function createRuntime<TPorts extends RuntimePorts>(
 export interface InMemoryRuntimeOptions {
   memberships?: ProjectMembership[];
   mediaExecutor: MediaExecutor;
+  mediaArtifactFinalizer?: MediaArtifactFinalizer;
+  mediaExecutorName?: string;
+  mediaExecutorVersion?: string;
   publisherAdapters: NetworkPublisherAdapter[];
   workerId?: string;
 }
@@ -99,6 +118,9 @@ export function createInMemoryRuntime(options: InMemoryRuntimeOptions) {
 
   return createRuntime(ports, {
     mediaExecutor: options.mediaExecutor,
+    ...(options.mediaArtifactFinalizer ? { mediaArtifactFinalizer: options.mediaArtifactFinalizer } : {}),
+    ...(options.mediaExecutorName ? { mediaExecutorName: options.mediaExecutorName } : {}),
+    ...(options.mediaExecutorVersion ? { mediaExecutorVersion: options.mediaExecutorVersion } : {}),
     publisherAdapters: options.publisherAdapters,
     publisherIdempotency: new InMemoryIdempotencyStore(),
     workerId: options.workerId ?? 'local-runtime',
