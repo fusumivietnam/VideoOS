@@ -39,7 +39,7 @@ export class VideoOsApi {
       'publish.create',
     );
 
-    const jobId = `publish:${command.request.id}`;
+    const jobId = `publish:${command.request.projectId}:${command.request.idempotencyKey}`;
     await this.dependencies.jobs.enqueue('publish', jobId, command.request, { maxAttempts: 5 });
     return { jobId };
   }
