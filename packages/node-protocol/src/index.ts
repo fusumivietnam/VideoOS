@@ -1,4 +1,4 @@
-import type { AiTask, MediaTransformRequest } from '@videoos/contracts';
+import type { AiTaskRequest, MediaTransformRequest } from '@videoos/contracts';
 
 export type NodeCapability = 'media.ffmpeg' | 'ai.local' | 'editor.bridge';
 
@@ -23,7 +23,7 @@ export interface NodeHeartbeat {
 
 export type NodeTaskPayload =
   | { kind: 'media-transform'; request: MediaTransformRequest }
-  | { kind: 'ai-task'; request: AiTask }
+  | { kind: 'ai-task'; request: AiTaskRequest }
   | { kind: 'editor-command'; editor: string; command: string; args?: Record<string, unknown> };
 
 export interface NodeTaskLease {
