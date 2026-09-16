@@ -60,11 +60,18 @@ export function createRuntime<TPorts extends RuntimePorts>(
           throw new Error('media source asset not found in project');
         }
 
-        await mediaWorker.transform({
-          sourceAssetId: payload.assetId,
-          operations: payload.transform.operations,
-          output: payload.transform.output,
-        });
+        await mediaWorker.transform(
+          {
+            sourceAssetId: payload.assetId,
+            operations: payload.transform.operations,
+            output: payload.transform.output,
+          },
+          {
+            projectId: payload.projectId,
+            jobId: job.id,
+            sourceObjectKey: source.objectKey,
+          },
+        );
       });
     },
     async runPublishOnce() {
