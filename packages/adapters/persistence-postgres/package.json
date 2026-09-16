@@ -1,0 +1,23 @@
+{
+  "name": "@videoos/adapter-persistence-postgres",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "migrate": "node scripts/migrate.mjs",
+    "test:integration": "tsx scripts/integration.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@videoos/event-fabric": "workspace:*",
+    "@videoos/identity": "workspace:*",
+    "@videoos/job-queue": "workspace:*",
+    "@videoos/storage": "workspace:*",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.13",
+    "typescript": "^5.9.0"
+  }
+}
