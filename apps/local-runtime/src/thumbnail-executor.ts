@@ -49,8 +49,8 @@ export class ThumbnailFfmpegExecutor implements MediaExecutor {
   }
 
   async execute(plan: MediaExecutionPlan): Promise<{ assetId: string; uri: string }> {
+    requireFrame(plan);
     const context = requireContext(plan);
-    const operation = thumbnailOperation(plan);
     const sourcePath = await this.resolveSourcePath(plan);
     await assertExistingFileInside(this.sandboxRoot, sourcePath);
 
@@ -84,7 +84,6 @@ export class ThumbnailFfmpegExecutor implements MediaExecutor {
       throw new FfmpegExecutionError('output-too-large', 'thumbnail output exceeded the configured size limit');
     }
 
-    void operation;
     return { assetId: identity.assetId, uri: pathToFileURL(outputPath).href };
   }
 }
@@ -96,46 +95,36 @@ export class RoutedMediaExecutor implements MediaExecutor {
   ) {}
 
   execute(plan: MediaExecutionPlan): Promise<{ assetId: string; uri: string }> {
-    const hasFrameExtraction = plan.operations.some((operation) => operation.type === 'extract-frame');
-    return (hasFrameExtraction ? this.thumbnail : this.video).execute(plan);
+    return (plan.frame ? this.thumbnail : this.video).execute(plan);
   }
 }
 
 export function buildThumbnailArgs(plan: MediaExecutionPlan, inputPath: string, outputPath: string): string[] {
-  const operation = thumbnailOperation(plan);
+  const frame = requireFrame(plan);
   imageExtension(plan.output.container);
-  const atMs = operation.atMs ?? REPRESENTATIVE_FRAME_DEFAULT_MS;
+  const atMs = frame.atMs ?? REPRESENTATIVE_FRAME_DEFAULT_MS;
   if (!Number.isFinite(atMs) || atMs < 0) throw new FfmpegExecutionError('invalid-plan', 'thumbnail timestamp must be non-negative');
 
   const args = [
-    '-nostdin',
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-ss',
-    (atMs / 1000).toFixed(3),
-    '-i',
-    inputPath,
-    '-frames:v',
-    '1',
-    '-an',
+    '-nostdin', '-hide_banner', '-loglevel', 'error',
+    '-ss', (atMs / 1000).toFixed(3), '-i', inputPath,
+    '-frames:v', '1', '-an',
   ];
-  if (operation.width !== undefined && operation.height !== undefined) {
-    if (!Number.isInteger(operation.width) || !Number.isInteger(operation.height) || operation.width <= 0 || operation.height <= 0) {
+  if (frame.width !== undefined && frame.height !== undefined) {
+    if (!Number.isInteger(frame.width) || !Number.isInteger(frame.height) || frame.width <= 0 || frame.height <= 0) {
       throw new FfmpegExecutionError('invalid-plan', 'thumbnail dimensions must be positive integers');
     }
-    args.push('-vf', `scale=${operation.width}:${operation.height}:force_original_aspect_ratio=decrease`);
+    args.push('-vf', `scale=${frame.width}:${frame.height}:force_original_aspect_ratio=decrease`);
   }
   args.push('-f', 'image2', '-y', outputPath);
   return args;
 }
 
-function thumbnailOperation(plan: MediaExecutionPlan): Extract<MediaExecutionPlan['operations'][number], { type: 'extract-frame' }> {
-  const frames = plan.operations.filter((operation) => operation.type === 'extract-frame');
-  if (frames.length !== 1 || plan.operations.length !== 1) {
-    throw new FfmpegExecutionError('invalid-plan', 'thumbnail execution requires exactly one extract-frame operation');
+function requireFrame(plan: MediaExecutionPlan): NonNullable<MediaExecutionPlan['frame']> {
+  if (!plan.frame || plan.operations.length) {
+    throw new FfmpegExecutionError('invalid-plan', 'thumbnail execution requires frame mode without media operations');
   }
-  return frames[0] as Extract<MediaExecutionPlan['operations'][number], { type: 'extract-frame' }>;
+  return plan.frame;
 }
 
 function imageExtension(container: string): 'jpg' | 'png' {
@@ -157,7 +146,6 @@ async function canonicalRoot(root: string): Promise<string> {
   await mkdir(root, { recursive: true });
   return realpath(root);
 }
-
 async function assertExistingFileInside(root: string, candidate: string): Promise<void> {
   const canonical = await realpath(candidate).catch(() => null);
   const rootPath = await canonicalRoot(root);
@@ -165,35 +153,29 @@ async function assertExistingFileInside(root: string, candidate: string): Promis
   const info = await stat(canonical);
   if (!info.isFile()) throw new FfmpegExecutionError('unsafe-path', 'thumbnail source must be a regular file');
 }
-
 async function assertDirectoryInside(root: string, candidate: string): Promise<void> {
   const rootPath = await canonicalRoot(root);
   const canonical = await realpath(candidate).catch(() => null);
   if (!canonical || !isInside(rootPath, canonical)) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output directory escapes sandbox');
 }
-
 function assertInsideResolved(root: string, candidate: string): void {
   if (!isInside(resolve(root), resolve(candidate))) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output path escapes sandbox');
 }
-
 function isInside(root: string, candidate: string): boolean {
   const relation = relative(root, candidate);
   return relation === '' || (!relation.startsWith('..') && !isAbsolute(relation));
 }
-
 async function removeExistingRegularOutput(path: string): Promise<void> {
   const existing = await lstat(path).catch(() => null);
   if (!existing) return;
   if (existing.isSymbolicLink() || !existing.isFile()) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output is not a regular file');
   await unlink(path);
 }
-
 function safeSegment(value: string): string {
   const safe = value.replace(/[^a-zA-Z0-9._-]/g, '_');
   if (!safe || safe === '.' || safe === '..') throw new FfmpegExecutionError('unsafe-path', 'unsafe thumbnail context segment');
   return safe;
 }
-
 function positiveInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);
   return value;
