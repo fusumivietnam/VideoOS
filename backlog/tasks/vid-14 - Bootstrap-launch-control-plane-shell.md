@@ -19,7 +19,7 @@ Provide a dependency-light operator-facing web control plane that can be launche
 This is an alpha/operator surface, not a substitute for the eventual authenticated product UI. It must bind locally by default and remain read-only.
 
 ## Acceptance Criteria
-- [ ] #1 `apps/web` is an executable workspace package using Node 24 built-ins only; frozen-lockfile CI remains valid.
+- [ ] #1 `apps/web` is executable through root Node 24 scripts using built-ins only, with no new workspace dependency/importer and unchanged frozen-lockfile behavior.
 - [ ] #2 The server binds to `127.0.0.1` by default with configurable host/port and exposes `/health`.
 - [ ] #3 `/api/launch-state` derives milestone/current focus and launch gates from canonical repository files; chat context is not an input.
 - [ ] #4 The browser dashboard clearly shows GO/NOT READY, VID-12 live verification, VID-13 publish safety, current focus, and exact operator commands without exposing secrets.
