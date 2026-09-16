@@ -1,10 +1,10 @@
+import { createHash } from 'node:crypto';
 import { lstat, mkdir, realpath, stat, unlink } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import type { MediaExecutionPlan, MediaExecutor } from '../../../services/media-worker/src/index.js';
 import {
-  buildOutputIdentity,
   FfmpegExecutionError,
   NodeFfmpegProcessRunner,
   type FfmpegProcessRunner,
@@ -54,7 +54,7 @@ export class ThumbnailFfmpegExecutor implements MediaExecutor {
     const sourcePath = await this.resolveSourcePath(plan);
     await assertExistingFileInside(this.sandboxRoot, sourcePath);
 
-    const identity = buildOutputIdentity(plan);
+    const identity = buildThumbnailIdentity(plan);
     const outputDir = resolve(this.sandboxRoot, 'work', safeSegment(context.projectId), safeSegment(context.jobId), 'frames');
     await mkdir(outputDir, { recursive: true });
     await assertDirectoryInside(this.sandboxRoot, outputDir);
@@ -83,17 +83,12 @@ export class ThumbnailFfmpegExecutor implements MediaExecutor {
       await unlink(outputPath).catch(() => undefined);
       throw new FfmpegExecutionError('output-too-large', 'thumbnail output exceeded the configured size limit');
     }
-
     return { assetId: identity.assetId, uri: pathToFileURL(outputPath).href };
   }
 }
 
 export class RoutedMediaExecutor implements MediaExecutor {
-  constructor(
-    private readonly video: MediaExecutor,
-    private readonly thumbnail: MediaExecutor,
-  ) {}
-
+  constructor(private readonly video: MediaExecutor, private readonly thumbnail: MediaExecutor) {}
   execute(plan: MediaExecutionPlan): Promise<{ assetId: string; uri: string }> {
     return (plan.frame ? this.thumbnail : this.video).execute(plan);
   }
@@ -104,12 +99,7 @@ export function buildThumbnailArgs(plan: MediaExecutionPlan, inputPath: string, 
   imageExtension(plan.output.container);
   const atMs = frame.atMs ?? REPRESENTATIVE_FRAME_DEFAULT_MS;
   if (!Number.isFinite(atMs) || atMs < 0) throw new FfmpegExecutionError('invalid-plan', 'thumbnail timestamp must be non-negative');
-
-  const args = [
-    '-nostdin', '-hide_banner', '-loglevel', 'error',
-    '-ss', (atMs / 1000).toFixed(3), '-i', inputPath,
-    '-frames:v', '1', '-an',
-  ];
+  const args = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-ss', (atMs / 1000).toFixed(3), '-i', inputPath, '-frames:v', '1', '-an'];
   if (frame.width !== undefined && frame.height !== undefined) {
     if (!Number.isInteger(frame.width) || !Number.isInteger(frame.height) || frame.width <= 0 || frame.height <= 0) {
       throw new FfmpegExecutionError('invalid-plan', 'thumbnail dimensions must be positive integers');
@@ -120,32 +110,38 @@ export function buildThumbnailArgs(plan: MediaExecutionPlan, inputPath: string, 
   return args;
 }
 
-function requireFrame(plan: MediaExecutionPlan): NonNullable<MediaExecutionPlan['frame']> {
-  if (!plan.frame || plan.operations.length) {
-    throw new FfmpegExecutionError('invalid-plan', 'thumbnail execution requires frame mode without media operations');
-  }
-  return plan.frame;
+export function buildThumbnailIdentity(plan: MediaExecutionPlan): { hash: string; assetId: string } {
+  const context = requireContext(plan);
+  const frame = requireFrame(plan);
+  const canonical = JSON.stringify({
+    projectId: context.projectId,
+    jobId: context.jobId,
+    sourceAssetId: plan.sourceAssetId,
+    sourceObjectKey: context.sourceObjectKey,
+    preset: plan.preset,
+    frame,
+    output: plan.output,
+  });
+  const hash = createHash('sha256').update(canonical).digest('hex');
+  return { hash, assetId: `asset:derived:${hash.slice(0, 24)}` };
 }
 
+function requireFrame(plan: MediaExecutionPlan): NonNullable<MediaExecutionPlan['frame']> {
+  if (!plan.frame || plan.operations.length) throw new FfmpegExecutionError('invalid-plan', 'thumbnail execution requires frame mode without media operations');
+  return plan.frame;
+}
 function imageExtension(container: string): 'jpg' | 'png' {
   const normalized = container.toLowerCase();
   if (normalized === 'jpg' || normalized === 'jpeg') return 'jpg';
   if (normalized === 'png') return 'png';
   throw new FfmpegExecutionError('unsupported-format', `unsupported thumbnail container: ${container}`);
 }
-
 function requireContext(plan: MediaExecutionPlan): NonNullable<MediaExecutionPlan['context']> {
   const context = plan.context;
-  if (!context?.projectId || !context.jobId || !context.sourceObjectKey) {
-    throw new FfmpegExecutionError('invalid-plan', 'thumbnail execution requires project, job, and source-object context');
-  }
+  if (!context?.projectId || !context.jobId || !context.sourceObjectKey) throw new FfmpegExecutionError('invalid-plan', 'thumbnail execution requires project, job, and source-object context');
   return context;
 }
-
-async function canonicalRoot(root: string): Promise<string> {
-  await mkdir(root, { recursive: true });
-  return realpath(root);
-}
+async function canonicalRoot(root: string): Promise<string> { await mkdir(root, { recursive: true }); return realpath(root); }
 async function assertExistingFileInside(root: string, candidate: string): Promise<void> {
   const canonical = await realpath(candidate).catch(() => null);
   const rootPath = await canonicalRoot(root);
@@ -158,25 +154,13 @@ async function assertDirectoryInside(root: string, candidate: string): Promise<v
   const canonical = await realpath(candidate).catch(() => null);
   if (!canonical || !isInside(rootPath, canonical)) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output directory escapes sandbox');
 }
-function assertInsideResolved(root: string, candidate: string): void {
-  if (!isInside(resolve(root), resolve(candidate))) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output path escapes sandbox');
-}
-function isInside(root: string, candidate: string): boolean {
-  const relation = relative(root, candidate);
-  return relation === '' || (!relation.startsWith('..') && !isAbsolute(relation));
-}
+function assertInsideResolved(root: string, candidate: string): void { if (!isInside(resolve(root), resolve(candidate))) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output path escapes sandbox'); }
+function isInside(root: string, candidate: string): boolean { const relation = relative(root, candidate); return relation === '' || (!relation.startsWith('..') && !isAbsolute(relation)); }
 async function removeExistingRegularOutput(path: string): Promise<void> {
   const existing = await lstat(path).catch(() => null);
   if (!existing) return;
   if (existing.isSymbolicLink() || !existing.isFile()) throw new FfmpegExecutionError('unsafe-path', 'thumbnail output is not a regular file');
   await unlink(path);
 }
-function safeSegment(value: string): string {
-  const safe = value.replace(/[^a-zA-Z0-9._-]/g, '_');
-  if (!safe || safe === '.' || safe === '..') throw new FfmpegExecutionError('unsafe-path', 'unsafe thumbnail context segment');
-  return safe;
-}
-function positiveInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);
-  return value;
-}
+function safeSegment(value: string): string { const safe = value.replace(/[^a-zA-Z0-9._-]/g, '_'); if (!safe || safe === '.' || safe === '..') throw new FfmpegExecutionError('unsafe-path', 'unsafe thumbnail context segment'); return safe; }
+function positiveInteger(value: number, label: string): number { if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`); return value; }
