@@ -1,6 +1,7 @@
 import type { PublishReceipt } from '@videoos/contracts';
 
 import {
+  checkPostgresReadiness,
   createPostgresPool,
   PostgresAssetRepository,
   PostgresEventOutbox,
@@ -44,6 +45,12 @@ export function createPostgresRuntime(options: PostgresRuntimeOptions) {
     ...runtime,
     pool,
     outbox,
+    liveness() {
+      return { status: 'alive' as const };
+    },
+    async readiness() {
+      return checkPostgresReadiness(pool);
+    },
     async close() {
       await pool.end();
     },
