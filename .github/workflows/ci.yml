@@ -35,6 +35,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Emit generated lockfile candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f pnpm-lock.yaml
+          echo 'VIDEOOS_LOCKFILE_BASE64_BEGIN'
+          base64 -w0 pnpm-lock.yaml
+          echo
+          echo 'VIDEOOS_LOCKFILE_BASE64_END'
+
       - name: Architecture boundaries
         run: pnpm architecture:check
 
