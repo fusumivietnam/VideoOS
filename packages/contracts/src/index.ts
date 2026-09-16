@@ -70,8 +70,14 @@ export interface PublishReceipt {
   message?: string;
 }
 
+export interface MediaPresetRef {
+  id: string;
+  version: number;
+}
+
 export interface MediaTransformRequest {
   sourceAssetId: EntityId;
+  preset?: MediaPresetRef;
   operations: MediaOperation[];
   output: {
     container: string;
