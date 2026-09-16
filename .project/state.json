@@ -5,8 +5,8 @@
   "milestoneName": "Durable local-first backbone",
   "status": "active",
   "currentFocus": [
-    "complete VID-2 S3-compatible object storage; local filesystem edge is implemented and S3 provider support remains",
-    "targeted PostgreSQL integration gating",
+    "complete VID-2 S3-compatible object storage; local filesystem edge is implemented and provider-backed S3 support remains",
+    "finish VID-4 operational safety after S3 recovery guidance is defined",
     "bootstrap the Understand Anything derived graph locally"
   ],
   "completedMilestones": ["M0", "M1"],
@@ -16,10 +16,16 @@
     "durable publisher idempotency storage",
     "atomic terminal queue settlement plus lifecycle outbox persistence",
     "repository-owned canonical Project Brain state",
-    "sandboxed dependency-free local filesystem object storage"
+    "sandboxed dependency-free local filesystem object storage",
+    "path-gated PostgreSQL durable integration in the single CI quality job",
+    "PostgreSQL 18-compatible local Compose persistence",
+    "durable runtime liveness and migration-aware readiness",
+    "local-first PostgreSQL plus filesystem backup/restore runbook"
   ],
-  "blockers": [],
-  "nextTasks": ["VID-2", "VID-3", "VID-5", "VID-4"],
+  "blockers": [
+    "VID-2 provider-backed S3 adapter requires an intentional SDK and lockfile update"
+  ],
+  "nextTasks": ["VID-2", "VID-4", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
