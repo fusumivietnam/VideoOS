@@ -19,49 +19,114 @@ jobs:
     timeout-minutes: 15
     env:
       DATABASE_URL: postgres://videoos:videoos@127.0.0.1:5432/videoos
-    services:
-      postgres:
-        image: postgres:18.6-alpine
-        env:
-          POSTGRES_DB: videoos
-          POSTGRES_USER: videoos
-          POSTGRES_PASSWORD: videoos
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U videoos -d videoos"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+      RUN_CODE: 'true'
+      RUN_POSTGRES: 'false'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, node24
+        with:
+          fetch-depth: 2
+
+      - name: Detect affected paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "RUN_CODE=true" >> "$GITHUB_ENV"
+            echo "RUN_POSTGRES=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            changed_files="$(git diff --name-only HEAD^1 HEAD)"
+          else
+            before="${{ github.event.before }}"
+            if [[ -n "$before" && ! "$before" =~ ^0+$ ]]; then
+              git fetch --no-tags --depth=1 origin "$before" || true
+              changed_files="$(git diff --name-only "$before" HEAD 2>/dev/null || git show --pretty='' --name-only HEAD)"
+            else
+              changed_files="$(git show --pretty='' --name-only HEAD)"
+            fi
+          fi
+
+          echo "Changed files:"
+          printf '%s\n' "$changed_files"
+
+          code_files="$(printf '%s\n' "$changed_files" | grep -Ev '^(docs/|\.agents/)|\.md$' || true)"
+          if [[ -z "$code_files" ]]; then
+            echo "RUN_CODE=false" >> "$GITHUB_ENV"
+            echo "RUN_POSTGRES=false" >> "$GITHUB_ENV"
+            echo "Documentation/agent-guidance-only change: skipping dependency install and code checks."
+            exit 0
+          fi
+
+          echo "RUN_CODE=true" >> "$GITHUB_ENV"
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(packages/adapters/persistence-postgres/|packages/job-queue/|packages/storage/|packages/identity/|packages/event-fabric/|\.github/workflows/ci\.yml$|package\.json$|pnpm-workspace\.yaml$|pnpm-lock\.yaml$|tsconfig\.base\.json$)'; then
+            echo "RUN_POSTGRES=true" >> "$GITHUB_ENV"
+          fi
 
       - name: Setup pnpm
+        if: env.RUN_CODE == 'true'
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0, node24
         with:
           version: 10.17.0
           run_install: false
 
       - name: Setup Node.js
+        if: env.RUN_CODE == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, node24
         with:
           node-version: 24
 
       - name: Install dependencies
+        if: env.RUN_CODE == 'true'
         run: pnpm install --no-frozen-lockfile
 
       - name: Architecture boundaries
+        if: env.RUN_CODE == 'true'
         run: pnpm architecture:check
 
       - name: Typecheck workspace
+        if: env.RUN_CODE == 'true'
         run: pnpm typecheck
 
       - name: Test workspace
+        if: env.RUN_CODE == 'true'
         run: pnpm test
 
+      - name: Start PostgreSQL
+        if: env.RUN_POSTGRES == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --rm \
+            --name videoos-ci-postgres \
+            --env POSTGRES_DB=videoos \
+            --env POSTGRES_USER=videoos \
+            --env POSTGRES_PASSWORD=videoos \
+            --publish 5432:5432 \
+            postgres:18.6-alpine
+
+          for attempt in {1..30}; do
+            if docker exec videoos-ci-postgres pg_isready -U videoos -d videoos >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs videoos-ci-postgres
+          exit 1
+
       - name: Migrate PostgreSQL
+        if: env.RUN_POSTGRES == 'true'
         run: pnpm --filter @videoos/adapter-persistence-postgres migrate
 
       - name: PostgreSQL durable-core integration
+        if: env.RUN_POSTGRES == 'true'
         run: pnpm --filter @videoos/adapter-persistence-postgres test:integration
+
+      - name: Stop PostgreSQL
+        if: always() && env.RUN_POSTGRES == 'true'
+        run: docker stop videoos-ci-postgres >/dev/null 2>&1 || true
