@@ -370,6 +370,10 @@ export class PostgresJsonStore<T> {
       [this.namespace, key, JSON.stringify(value)],
     );
   }
+
+  async delete(key: string): Promise<void> {
+    await this.db.query('DELETE FROM json_values WHERE namespace = $1 AND key = $2', [this.namespace, key]);
+  }
 }
 
 interface OutboxRow extends QueryResultRow {
