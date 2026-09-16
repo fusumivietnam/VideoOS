@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -31,29 +31,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, node24
         with:
           node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Commit generated lockfile
-        if: github.event_name == 'pull_request' && github.head_ref == 'chore/m1-lockfile-ci'
-        shell: bash
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          cp pnpm-lock.yaml /tmp/pnpm-lock.yaml
-          git fetch origin "$HEAD_BRANCH"
-          git checkout -B "$HEAD_BRANCH" "origin/$HEAD_BRANCH"
-          cp /tmp/pnpm-lock.yaml pnpm-lock.yaml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add pnpm-lock.yaml
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m 'chore: lock pnpm dependencies'
-          git push origin "HEAD:$HEAD_BRANCH"
+        run: pnpm install --frozen-lockfile
 
       - name: Architecture boundaries
         run: pnpm architecture:check
