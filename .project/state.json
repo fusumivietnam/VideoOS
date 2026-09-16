@@ -5,8 +5,8 @@
   "milestoneName": "Media production path",
   "status": "active",
   "currentFocus": [
-    "VID-6 production FFmpeg executor with strict sandboxing and resource limits",
     "VID-7 probe/metadata extraction and derived-asset lineage",
+    "add object-store staging/persistence for deterministic FFmpeg outputs",
     "VID-5 bootstrap the Understand Anything derived graph locally without blocking runtime work"
   ],
   "completedMilestones": ["M0", "M1", "M2"],
@@ -21,10 +21,11 @@
     "path-gated PostgreSQL durable integration in the single CI quality job",
     "PostgreSQL 18-compatible local Compose persistence",
     "durable runtime liveness and migration-aware readiness",
-    "PostgreSQL plus filesystem/S3-compatible backup and recovery guidance"
+    "PostgreSQL plus filesystem/S3-compatible backup and recovery guidance",
+    "sandboxed deterministic FFmpeg execution foundation with bounded process/resource behavior"
   ],
   "blockers": [],
-  "nextTasks": ["VID-6", "VID-7", "VID-5"],
+  "nextTasks": ["VID-7", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",

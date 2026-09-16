@@ -1,6 +1,6 @@
 # Runtime composition
 
-This app contains executable composition roots for the VideoOS vertical slice. Domain/services remain provider-neutral; concrete persistence is selected here at the application edge.
+This app contains executable composition roots for the VideoOS vertical slice. Domain/services remain provider-neutral; concrete persistence and media-process integrations are selected here at the application edge.
 
 ## In-memory runtime
 
@@ -11,7 +11,7 @@ The smoke test proves both canonical paths:
 - `API -> queue(media) -> QueueRunner -> MediaWorker -> MediaExecutor`
 - `API -> queue(publish) -> QueueRunner -> PublisherService -> NetworkPublisherAdapter`
 
-Both paths emit lifecycle events and are observable through the project-authorized job-status API.
+Both paths emit lifecycle events and are observable through the project-authorized job-status API. The media path also propagates internal `projectId`, `jobId`, and source object-key context to the executor without adding those execution details to the public media-transform request.
 
 Run with:
 
@@ -19,9 +19,38 @@ Run with:
 pnpm --filter @videoos/local-runtime test
 ```
 
+## FFmpeg executor
+
+`FfmpegExecutor` is the first production media-process adapter behind `MediaExecutor`. It expects an FFmpeg binary to be available on the runtime host (`ffmpeg` by default; override `binary` when composing the executor).
+
+The executor is intentionally application-edge code. It:
+
+- invokes FFmpeg with `spawn(..., shell: false)` and never accepts arbitrary shell fragments;
+- translates only typed media operations into arguments and allowlists output containers/codecs;
+- requires project/job/source-object execution context and derives a deterministic output identity from that context plus the transform plan;
+- canonicalizes the source path and rejects sources/symlinks that resolve outside one configured sandbox root;
+- writes only beneath a deterministic sandbox work directory and refuses existing symlink/non-regular output targets;
+- applies a process timeout, bounded stderr capture, and maximum output-file size;
+- normalizes process/validation failures into bounded `FfmpegExecutionError` categories;
+- currently supports trim, resize and audio normalization; subtitle burn-in remains disabled until subtitle assets can be staged safely.
+
+Example composition:
+
+```ts
+import { FfmpegExecutor } from './src/ffmpeg-executor.js';
+
+const mediaExecutor = new FfmpegExecutor({
+  sandboxRoot: '.videoos/media-sandbox',
+  timeoutMs: 15 * 60_000,
+  maxOutputBytes: 4 * 1024 * 1024 * 1024,
+});
+```
+
+The first executor returns a local `file:` URI for its sandboxed output. VID-7 adds probing, normalized metadata, persisted derived-asset lineage and the staging/persistence step that moves deterministic outputs through the configured object-store boundary.
+
 ## Local filesystem object storage
 
-`FileSystemObjectStore` is the zero-managed-service development implementation of the existing `ObjectStore` contract. It lives at the application edge and requires no provider SDK or lockfile change.
+`FileSystemObjectStore` is the zero-managed-service development implementation of the existing `ObjectStore` contract. It lives at the application edge and requires no provider SDK.
 
 It:
 
@@ -45,7 +74,7 @@ await objects.put({
 });
 ```
 
-The local filesystem adapter deliberately does **not** return `file://` paths as signed URLs. `signedReadUrl(...)` fails explicitly. The S3-compatible deployment adapter, including provider-backed signed URLs, remains the next part of VID-2 rather than being simulated locally.
+The local filesystem adapter deliberately does **not** return `file://` paths as signed URLs. `signedReadUrl(...)` fails explicitly. Provider-backed S3-compatible storage is available through `@videoos/adapter-storage-s3` for deployment paths that need signed read URLs.
 
 ## PostgreSQL runtime
 

@@ -4,6 +4,12 @@ import type {
   MediaWorkerPort,
 } from "@videoos/contracts";
 
+export interface MediaExecutionContext {
+  projectId: string;
+  jobId: string;
+  sourceObjectKey: string;
+}
+
 export interface MediaExecutor {
   execute(plan: MediaExecutionPlan): Promise<{ assetId: string; uri: string }>;
 }
@@ -12,9 +18,13 @@ export interface MediaExecutionPlan {
   sourceAssetId: string;
   operations: MediaOperation[];
   output: MediaTransformRequest["output"];
+  context?: MediaExecutionContext;
 }
 
-export function buildExecutionPlan(request: MediaTransformRequest): MediaExecutionPlan {
+export function buildExecutionPlan(
+  request: MediaTransformRequest,
+  context?: MediaExecutionContext,
+): MediaExecutionPlan {
   for (const operation of request.operations) {
     if (operation.type === "trim" && operation.endMs <= operation.startMs) {
       throw new Error("trim.endMs must be greater than trim.startMs");
@@ -35,13 +45,17 @@ export function buildExecutionPlan(request: MediaTransformRequest): MediaExecuti
     sourceAssetId: request.sourceAssetId,
     operations: [...request.operations],
     output: { ...request.output },
+    ...(context ? { context: { ...context } } : {}),
   };
 }
 
 export class MediaWorker implements MediaWorkerPort {
   constructor(private readonly executor: MediaExecutor) {}
 
-  transform(request: MediaTransformRequest): Promise<{ assetId: string; uri: string }> {
-    return this.executor.execute(buildExecutionPlan(request));
+  transform(
+    request: MediaTransformRequest,
+    context?: MediaExecutionContext,
+  ): Promise<{ assetId: string; uri: string }> {
+    return this.executor.execute(buildExecutionPlan(request, context));
   }
 }
