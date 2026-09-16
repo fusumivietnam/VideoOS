@@ -46,7 +46,7 @@ export function createRuntime<TPorts extends RuntimePorts>(
   const publisher = new PublisherService(options.publisherAdapters, options.publisherIdempotency);
   const runner = new QueueRunner(ports.jobs, ports.events, {
     workerId: options.workerId ?? 'videoos-runtime',
-    settlement: options.queueSettlement,
+    ...(options.queueSettlement ? { settlement: options.queueSettlement } : {}),
   });
 
   return {
