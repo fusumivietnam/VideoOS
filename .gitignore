@@ -16,3 +16,7 @@ Thumbs.db
 
 *.log
 *.local
+
+# Understand Anything local scratch; shareable .ua graph/config artifacts may be committed after review.
+.ua/intermediate/
+.ua/diff-overlay.json
