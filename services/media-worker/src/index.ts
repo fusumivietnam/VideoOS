@@ -33,6 +33,17 @@ export function buildExecutionPlan(
     if (operation.type === "resize" && (operation.width <= 0 || operation.height <= 0)) {
       throw new Error("resize dimensions must be positive");
     }
+    if (operation.type === "extract-frame") {
+      if (operation.atMs !== undefined && (!Number.isFinite(operation.atMs) || operation.atMs < 0)) {
+        throw new Error("extract-frame.atMs must be non-negative");
+      }
+      if ((operation.width === undefined) !== (operation.height === undefined)) {
+        throw new Error("extract-frame width and height must be provided together");
+      }
+      if ((operation.width !== undefined && operation.width <= 0) || (operation.height !== undefined && operation.height <= 0)) {
+        throw new Error("extract-frame dimensions must be positive");
+      }
+    }
   }
 
   if (request.output.width !== undefined && request.output.width <= 0) {
