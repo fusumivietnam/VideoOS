@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
 const root = process.cwd();
@@ -18,13 +18,24 @@ async function walk(dir) {
   return files;
 }
 
+function partsFor(file) {
+  return relative(root, file).split(sep);
+}
+
 function topArea(file) {
-  return relative(root, file).split(sep)[0];
+  return partsFor(file)[0];
 }
 
 function serviceName(file) {
-  const parts = relative(root, file).split(sep);
+  const parts = partsFor(file);
   return parts[0] === 'services' ? parts[1] : null;
+}
+
+function isConcreteAdapterImport(specifier) {
+  return specifier.startsWith('@videoos/adapter-')
+    || specifier.includes('/packages/adapters/')
+    || specifier.startsWith('../../packages/adapters/')
+    || specifier.startsWith('../../../packages/adapters/');
 }
 
 function checkImport(file, specifier) {
@@ -33,6 +44,10 @@ function checkImport(file, specifier) {
 
   if (area === 'packages' && (specifier.startsWith('../../services/') || specifier.startsWith('../../apps/') || specifier.includes('/services/') || specifier.includes('/apps/'))) {
     violations.push(`${rel}: packages must not import apps/services (${specifier})`);
+  }
+
+  if (area !== 'apps' && isConcreteAdapterImport(specifier)) {
+    violations.push(`${rel}: concrete adapters may only be selected by app composition roots (${specifier})`);
   }
 
   if (area === 'services') {
@@ -44,7 +59,7 @@ function checkImport(file, specifier) {
   }
 
   if (specifier.startsWith('@videoos/')) {
-    const allowed = [
+    const allowedCore = [
       '@videoos/contracts',
       '@videoos/event-fabric',
       '@videoos/job-queue',
@@ -52,7 +67,9 @@ function checkImport(file, specifier) {
       '@videoos/identity',
       '@videoos/node-protocol'
     ];
-    if (!allowed.some((name) => specifier === name || specifier.startsWith(`${name}/`))) {
+    const coreImport = allowedCore.some((name) => specifier === name || specifier.startsWith(`${name}/`));
+    const appAdapterImport = area === 'apps' && specifier.startsWith('@videoos/adapter-');
+    if (!coreImport && !appAdapterImport) {
       violations.push(`${rel}: unknown internal package boundary (${specifier})`);
     }
   }
