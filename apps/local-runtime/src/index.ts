@@ -10,7 +10,7 @@ import { InMemoryAssetRepository, type AssetRepository } from '@videoos/storage'
 
 import { VideoOsApi, type MediaJobPayload } from '../../../services/api/src/index.js';
 import { MediaWorker, type MediaExecutor } from '../../../services/media-worker/src/index.js';
-import { QueueRunner } from '../../../services/orchestrator/src/index.js';
+import { QueueRunner, type QueueSettlementPort } from '../../../services/orchestrator/src/index.js';
 import {
   type IdempotencyStore,
   InMemoryIdempotencyStore,
@@ -29,6 +29,7 @@ export interface RuntimeExecutionOptions {
   mediaExecutor: MediaExecutor;
   publisherAdapters: NetworkPublisherAdapter[];
   publisherIdempotency: IdempotencyStore;
+  queueSettlement?: QueueSettlementPort;
   workerId?: string;
 }
 
@@ -45,6 +46,7 @@ export function createRuntime<TPorts extends RuntimePorts>(
   const publisher = new PublisherService(options.publisherAdapters, options.publisherIdempotency);
   const runner = new QueueRunner(ports.jobs, ports.events, {
     workerId: options.workerId ?? 'videoos-runtime',
+    settlement: options.queueSettlement,
   });
 
   return {
