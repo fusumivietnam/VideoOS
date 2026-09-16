@@ -1,0 +1,35 @@
+name: OpenCodeReview (paused)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: ${{ vars.ENABLE_OPEN_CODE_REVIEW == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OCR_LLM_URL: ${{ secrets.OCR_LLM_URL }}
+      OCR_LLM_AUTH_TOKEN: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+      OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL }}
+      OCR_LLM_USE_ANTHROPIC: ${{ vars.OCR_LLM_USE_ANTHROPIC }}
+
+    steps:
+      - name: Explain activation
+        if: env.OCR_LLM_URL == '' || env.OCR_LLM_AUTH_TOKEN == '' || env.OCR_LLM_MODEL == ''
+        run: |
+          echo "OpenCodeReview is paused by default."
+          echo "To reactivate it later, set ENABLE_OPEN_CODE_REVIEW=true and configure OCR LLM credentials."
+          exit 1
+
+      - name: Run OpenCodeReview
+        uses: alibaba/open-code-review@6734a44dbedd6391484dad01a1b79881f25b7af0
+        with:
+          llm_url: ${{ secrets.OCR_LLM_URL }}
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: ${{ vars.OCR_LLM_MODEL }}
+          llm_use_anthropic: ${{ vars.OCR_LLM_USE_ANTHROPIC }}

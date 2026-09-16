@@ -1,0 +1,20 @@
+{
+  "name": "videoos",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.17.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "dev": "pnpm -r --parallel --if-present dev",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "architecture:check": "node tooling/architecture-check.mjs",
+    "generate:service": "node tooling/generate-service.mjs",
+    "generate:adapter": "node tooling/generate-adapter.mjs",
+    "quality": "pnpm architecture:check && pnpm lint && pnpm typecheck && pnpm test"
+  }
+}
