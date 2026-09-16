@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +12,7 @@ import type { MediaProbe } from '../src/media-artifact.js';
 import { RoutedMediaArtifactFinalizer, ThumbnailAssetFinalizer } from '../src/thumbnail-artifact.js';
 import {
   buildThumbnailArgs,
+  buildThumbnailIdentity,
   REPRESENTATIVE_FRAME_DEFAULT_MS,
   RoutedMediaExecutor,
   ThumbnailFfmpegExecutor,
@@ -20,7 +21,8 @@ import {
 function thumbnailPlan(atMs?: number): MediaExecutionPlan {
   return {
     sourceAssetId: 'asset:source',
-    operations: [{ type: 'extract-frame', ...(atMs !== undefined ? { atMs } : {}), width: 640, height: 360 }],
+    frame: { ...(atMs !== undefined ? { atMs } : {}), width: 640, height: 360 },
+    operations: [],
     output: { container: 'jpg' },
     context: {
       projectId: 'project:one',
@@ -48,14 +50,16 @@ test('representative-frame default is deterministic when timestamp is omitted', 
   assert.equal(args[seekIndex + 1], '1.000');
 });
 
+test('frame configuration participates in deterministic thumbnail identity', () => {
+  assert.notEqual(buildThumbnailIdentity(thumbnailPlan(500)).assetId, buildThumbnailIdentity(thumbnailPlan(1_500)).assetId);
+});
+
 test('thumbnail executor creates deterministic image result inside sandbox', async () => {
   const root = await mkdtemp(join(tmpdir(), 'videoos-thumbnail-'));
-  const source = resolve(root, 'projects/project:one/assets/asset:source/source.mp4');
-  await writeFile(source, new Uint8Array([1, 2, 3]), { flag: 'w' }).catch(async () => {
-    const { mkdir } = await import('node:fs/promises');
-    await mkdir(resolve(root, 'projects/project:one/assets/asset:source'), { recursive: true });
-    await writeFile(source, new Uint8Array([1, 2, 3]));
-  });
+  const sourceDir = resolve(root, 'projects/project:one/assets/asset:source');
+  const source = resolve(sourceDir, 'source.mp4');
+  await mkdir(sourceDir, { recursive: true });
+  await writeFile(source, new Uint8Array([1, 2, 3]));
 
   try {
     const executor = new ThumbnailFfmpegExecutor({
@@ -86,19 +90,14 @@ test('thumbnail finalizer persists image asset with checksum and representative-
   const assets = new InMemoryAssetRepository();
   const objects = new InMemoryObjectStore();
   const probe: MediaProbe = { async probe() { return { width: 640, height: 360, videoCodec: 'mjpeg' }; } };
-  const finalizer = new ThumbnailAssetFinalizer({
-    assets,
-    objects,
-    probe,
-    now: () => new Date('2026-09-16T00:00:00.000Z'),
-  });
+  const finalizer = new ThumbnailAssetFinalizer({ assets, objects, probe, now: () => new Date('2026-09-16T00:00:00.000Z') });
 
   try {
     const asset = await finalizer.finalize({
       projectId: 'project:one',
       jobId: 'thumb:one',
       sourceAssetId: 'asset:source',
-      transform: { operations: [{ type: 'extract-frame' }], output: { container: 'jpg' } },
+      transform: { frame: {}, operations: [], output: { container: 'jpg' } },
       result: { assetId: 'asset:derived:thumb', uri: pathToFileURL(output).href },
       executor: 'ffmpeg-thumbnail',
       executorVersion: '7.1',
@@ -110,6 +109,7 @@ test('thumbnail finalizer persists image asset with checksum and representative-
     assert.equal(asset.metadata?.height, 360);
     assert.equal(asset.metadata?.imageCodec, 'mjpeg');
     assert.equal(asset.metadata?.lineageSourceAssetId, 'asset:source');
+    assert.match(String(asset.metadata?.lineageTransformJson), /"frame":\{\}/);
     assert.equal(typeof asset.checksumSha256, 'string');
     assert.deepEqual(await objects.get(asset.objectKey), new Uint8Array([4, 5, 6]));
   } finally {
@@ -126,27 +126,19 @@ test('media executor router and local-node agent use the same thumbnail executor
   assert.deepEqual(await router.execute(thumbnailPlan()), { assetId: 'thumb', uri: 'file:///thumb.jpg' });
   const agent = new LocalMediaNodeAgent({ nodeId: 'node:one', executor: router, executorName: 'routed-media' });
   const result = await agent.execute({
-    leaseId: 'lease:thumb',
-    taskId: 'thumb:node',
-    nodeId: 'node:one',
-    projectId: 'project:one',
+    leaseId: 'lease:thumb', taskId: 'thumb:node', nodeId: 'node:one', projectId: 'project:one',
     payload: {
       kind: 'media-transform',
-      request: {
-        sourceAssetId: 'asset:source',
-        operations: [{ type: 'extract-frame', atMs: 500 }],
-        output: { container: 'png' },
-      },
+      request: { sourceAssetId: 'asset:source', frame: { atMs: 500 }, operations: [], output: { container: 'png' } },
       sourceObjectKey: 'projects/project:one/assets/asset:source/source.mp4',
     },
-    leasedAt: '2026-09-16T00:00:00.000Z',
-    expiresAt: '2999-01-01T00:00:00.000Z',
+    leasedAt: '2026-09-16T00:00:00.000Z', expiresAt: '2999-01-01T00:00:00.000Z',
   });
   assert.equal(result.status, 'succeeded');
   assert.deepEqual(routes, ['thumbnail', 'thumbnail']);
 });
 
-test('artifact finalizer router selects thumbnail finalization for image containers', async () => {
+test('artifact finalizer router selects thumbnail finalization for frame mode', async () => {
   const calls: string[] = [];
   const fakeRecord = {
     id: 'asset:test', projectId: 'project:one', kind: 'image' as const,
@@ -158,7 +150,7 @@ test('artifact finalizer router selects thumbnail finalization for image contain
   const routed = new RoutedMediaArtifactFinalizer(videoFinalizer, thumbnailFinalizer);
   await routed.finalize({
     projectId: 'project:one', jobId: 'job:one', sourceAssetId: 'asset:source',
-    transform: { operations: [{ type: 'extract-frame' }], output: { container: 'jpg' } },
+    transform: { frame: {}, operations: [], output: { container: 'jpg' } },
     result: { assetId: 'asset:test', uri: 'file:///tmp/test.jpg' }, executor: 'thumbnail',
   });
   assert.deepEqual(calls, ['thumbnail']);
