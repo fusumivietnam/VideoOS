@@ -36,10 +36,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Architecture boundaries
+        run: pnpm architecture:check
+
       - name: Typecheck workspace
         run: pnpm typecheck
 
-      - name: Verify OpenCodeReview rule resolution
-        run: |
-          npx --yes @alibaba-group/open-code-review rules check packages/contracts/src/index.ts
-          npx --yes @alibaba-group/open-code-review rules check services/orchestrator/src/index.ts
+      - name: Test workspace
+        run: pnpm test
