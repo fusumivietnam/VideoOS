@@ -15,10 +15,12 @@ It currently provides:
 - localhost binding by default and restrictive browser headers;
 - no publish, OAuth, repository mutation or provider-specific business logic.
 
+The alpha shell deliberately has no `apps/web/package.json`. Root scripts run it directly with Node 24 so `pnpm install --frozen-lockfile` stays unchanged. When the authenticated product UI framework is pinned, `apps/web` can become a normal workspace package in a dedicated migration.
+
 Run locally:
 
 ```bash
-pnpm --filter @videoos/web dev
+pnpm web:dev
 ```
 
 Default URL:
@@ -30,7 +32,7 @@ http://127.0.0.1:3000
 Optional bind configuration:
 
 ```bash
-VIDEOOS_WEB_HOST=127.0.0.1 VIDEOOS_WEB_PORT=3000 pnpm --filter @videoos/web start
+VIDEOOS_WEB_HOST=127.0.0.1 VIDEOOS_WEB_PORT=3000 pnpm web:start
 ```
 
 The alpha shell is not a substitute for the later authenticated product UI. It is deliberately read-only so it cannot bypass `VideoOsApi`, publish approval, authorization, queue, credential or provider boundaries.
