@@ -6,8 +6,8 @@ This roadmap keeps the ponytail core small while turning the architecture into a
 
 ## Delivery policy
 
-- Keep one primary CI workflow for architecture checks, typechecking, and tests.
-- Keep OpenCodeReview manual-only while the product foundation is still moving quickly.
+- Keep one primary CI workflow for architecture checks, typechecking, tests, and only path-gated durable integration.
+- Keep OpenCodeReview manual-only while the product foundation is moving quickly.
 - Prefer contract-compatible adapters over provider-specific logic in domain/services.
 - Prefer local/free development paths first; managed services are substitutions behind ports.
 - Add infrastructure only when a real execution path needs it.
@@ -16,120 +16,70 @@ This roadmap keeps the ponytail core small while turning the architecture into a
 
 ## M0 — Executable foundation — complete
 
-Delivered:
-
-- pnpm monorepo on Node.js 24.
-- Contract-first package boundaries and architecture guard.
-- Core contracts for jobs, events, publishing, media, AI, analytics, and local nodes.
-- In-memory reference implementations for identity, storage, job queue, event bus/outbox.
-- API facade, orchestrator, media worker, publisher, analytics, and AI gateway service skeletons.
-- Agent engineering instructions and reusable skills for adding services/adapters and release review.
-- OpenCodeReview integration retained but paused/manual-only.
+Delivered: pnpm/Node 24 monorepo, contract-first boundaries, architecture guard, core contracts, in-memory reference adapters, service skeletons, agent engineering instructions, and manual-only OpenCodeReview.
 
 Exit condition met: architecture compiles and core module boundaries are enforceable.
 
 ## M1 — Executable vertical slice — complete
 
-Goal: make `API -> queue -> runner -> worker/provider port -> event` executable with deterministic retry behavior and tests before introducing durable infrastructure.
+Delivered: idempotent queue/leasing, max-attempt protection, generic QueueRunner, API job status, local runtime composition, media/publish smoke tests, committed lockfile, frozen CI install and dependency caching.
 
-Delivered:
-
-- [x] Queue idempotency and leasing reference implementation.
-- [x] Queue job inspection for operational/job-status use cases.
-- [x] Prevent lease recovery from exceeding `maxAttempts`; exhausted jobs go to dead letter.
-- [x] Generic orchestrator queue runner with lifecycle events, retries, and dead-letter result.
-- [x] Dependency-light tests that run through the existing single CI workflow.
-- [x] API job-status query with project authorization and a minimal non-sensitive status projection.
-- [x] Application composition root wiring API, queue runner, and in-memory adapters into a runnable local runtime.
-- [x] End-to-end smoke scenario for one media job and one publish job using fake provider/executor adapters.
-- [x] Committed `pnpm-lock.yaml`, frozen-lockfile CI install, and pnpm dependency caching.
-
-Exit condition met: commands enter through the API facade, execute through queue-backed runners, emit lifecycle events, and are asserted end-to-end without external infrastructure.
+Exit condition met: API -> queue -> runner -> worker/provider port -> lifecycle event executes end to end without external infrastructure.
 
 ## M2 — Durable local-first backbone — complete
 
-Goal: replace only the persistence points required by the M1 vertical slice while preserving public contracts and restart safety.
-
 Delivered:
 
-- [x] PostgreSQL-backed membership, asset, job queue, and transactional outbox adapters.
-- [x] Durable queue leasing with `FOR UPDATE SKIP LOCKED`, inspection, retry/dead-letter semantics, and final-lease exhaustion protection.
-- [x] Transaction helper so durable state and outbox writes can share one PostgreSQL transaction.
-- [x] Advisory-locked SQL migration runner and local PostgreSQL Docker Compose bootstrap with healthcheck.
-- [x] Durable adapters wired through an application composition root behind the same provider-neutral ports.
-- [x] Durable publisher idempotency storage.
-- [x] Provider-neutral queue settlement boundary.
-- [x] PostgreSQL terminal queue settlement (`complete`/`fail`) + lifecycle outbox append in one transaction, with rollback coverage.
-- [x] Dependency-free filesystem object store for the cheapest local loop.
-- [x] Provider-backed S3-compatible object-store adapter for AWS S3/MinIO/R2-style deployment, including signed read URLs.
-- [x] Targeted PostgreSQL integration gating inside the existing single CI quality job; unrelated PRs avoid database startup cost.
-- [x] PostgreSQL 18-compatible local Compose persistence.
-- [x] Durable runtime liveness plus migration-aware readiness.
-- [x] Backup/restore and recovery guidance for PostgreSQL plus filesystem/S3-compatible object stores.
+- PostgreSQL membership, asset, job queue, outbox and publisher-idempotency adapters.
+- `FOR UPDATE SKIP LOCKED`, retry/dead-letter semantics and final-lease protection.
+- Transaction helper plus provider-neutral queue settlement boundary.
+- Atomic terminal queue settlement + lifecycle outbox append.
+- Advisory-locked migration runner and PostgreSQL 18-compatible local Compose.
+- Filesystem object store and S3-compatible adapter with signed reads.
+- Path-gated PostgreSQL integration inside the single CI quality job.
+- Durable runtime liveness/readiness plus backup/restore guidance.
 
-Reliability note: lease acquisition and the informational `job.execution.started` event are separate. A crash after lease acquisition is handled through lease expiry/retry; correctness-critical terminal queue state is committed atomically with its lifecycle outbox event.
+Reliability note: lease acquisition and informational execution-start events remain separate; correctness-critical terminal queue state and lifecycle outbox state are atomic.
 
-Exit condition met: queued work and terminal workflow metadata are restart-safe; control-plane state and object bytes have documented recovery paths, and provider selection remains behind stable ports.
+Exit condition met: queued work and terminal workflow metadata are restart-safe, object/control-plane recovery is documented, and provider selection stays behind stable ports.
 
 ## M2.K — Engineering project brain — active
 
-Goal: remove long-term project state from chat memory without making RAG/agent infrastructure a runtime dependency.
+Delivered:
 
-Progress:
+- [x] Backlog-compatible task records and durable decision records.
+- [x] `.project/state.json` machine-readable current-state snapshot.
+- [x] `AGENTS.md` discovery path for fresh sessions.
+- [x] Local Understand Anything usage documented without runtime/CI dependency.
+- [x] `.ua` scratch ignored while reviewed shareable artifacts may be committed.
+- [ ] Bootstrap/review the initial `.ua` graph locally in a supported developer environment (`VID-5`).
 
-- [x] Add Backlog.md-compatible filesystem configuration and task records.
-- [x] Add repository-owned decision records for durable engineering choices.
-- [x] Add `.project/state.json` as a machine-readable current-state snapshot.
-- [x] Make `AGENTS.md` direct fresh sessions through state, roadmap, tasks, decisions, architecture, and derived knowledge.
-- [x] Document local Understand Anything usage for Claude Code and Codex without adding runtime/CI dependencies.
-- [x] Ignore local `.ua` scratch while allowing reviewed shareable graph/config artifacts to be committed.
-- [ ] Bootstrap and review the initial `.ua` graph locally in a supported developer environment (`VID-5`).
+Canonical truth remains Git source/history, backlog tasks, decision records, selective specs and `.project/state.json`. Understand Anything remains rebuildable derived intelligence only.
 
-Canonical engineering state:
+## M3 — Media production path — complete
 
-- Git source/history for implementation truth.
-- Backlog task/dependency records for roadmap execution.
-- Decision records for architectural choices and supersession.
-- Spec Kit-style feature specs selectively for larger cross-service changes.
-- `.project/state.json` for a small current-state snapshot that points back to canonical files.
+Delivered:
 
-Derived intelligence:
+- [x] `VID-6`: sandboxed FFmpeg executor with typed argument construction, path confinement, bounded stderr/time/output, deterministic naming and normalized failures.
+- [x] `VID-7`: ffprobe normalization, derived-asset persistence, checksum metadata, source/job/transform/executor lineage and reproducible manifests.
+- [x] `VID-8`: deterministic vertical/landscape/square media presets and project-scoped subtitle staging/burn-in with preset-aware lineage.
+- [x] `VID-9`: optional local-node media execution with generic CPU/GPU requirements, lease/result dedupe semantics and QueueRunner-authoritative retry/dead-letter behavior.
+- [x] `VID-10`: deterministic JPEG/PNG thumbnail/representative-frame extraction with explicit 1000 ms default, frame-aware identity and image-asset lineage.
+- [x] Local and local-node execution share the same media executor/finalizer boundaries and object-store/asset semantics.
 
-- Understand Anything is a local Codex/Claude developer skill/plugin, not a VideoOS runtime package.
-- `.ua` code/knowledge graph artifacts may support codebase navigation, semantic search, domain understanding, and change-impact analysis.
-- `.ua` is rebuildable derived state and never overrides Git/backlog/decision/spec truth.
-- No dedicated GitHub Actions workflow is added for Understand Anything during this phase.
+Exit condition met: source asset -> deterministic derived video/image asset works locally and through a worker node with reproducible metadata/lineage.
 
-Later boundary:
-
-- Add a provider-neutral `ProjectKnowledgePort` only when multiple project-knowledge consumers/adapters justify it.
-- Candidate adapters later: Understand Anything read model, Git/backlog read models, pgvector corpus retrieval, and Graphiti temporal knowledge.
-- MCP exposure belongs at the bounded tool layer, not in the deterministic job engine.
-
-Exit condition: a fresh coding-agent session can discover current milestone, blockers, decisions, and code relationships from repository state without requiring historical chat context.
-
-## M3 — Media production path — active
-
-Goal: turn the media worker into a safe, repeatable production pipeline.
-
-- [ ] `VID-6`: FFmpeg executor adapter with strict typed argument construction, path sandboxing, time/resource limits, bounded stderr, deterministic output naming, and normalized failures.
-- [ ] `VID-7`: ffprobe/metadata extraction, normalized media metadata, derived-asset lineage, and reproducible execution manifests.
-- [ ] Thumbnail, subtitle, audio normalization, resize/crop, and format presets built on the same typed executor boundary.
-- [ ] Local-node execution as an optional adapter for GPU/heavy workloads.
-- [ ] Deterministic object-store staging so filesystem/S3 backends use the same media pipeline semantics.
-
-Exit condition: source asset -> deterministic derived asset works locally and through a worker node with reproducible metadata/lineage.
-
-## M4 — Multi-network publishing
+## M4 — Multi-network publishing — active
 
 Goal: publish the same canonical content package through independent network adapters.
 
-- Canonical publish validation and platform capability matrix.
-- Credential vault boundary; credentials never enter browser/public contracts.
-- Adapter contract for upload, post creation, scheduling, polling, retry, and rate-limit translation.
-- Start with one platform adapter, prove idempotency/recovery, then add the next platform.
-- Publish receipts and reconciliation jobs for remote-state drift.
-- Manual approval/scheduling policies before autonomous bulk publishing.
+- [ ] `VID-11`: implement the first production publishing adapter and prove idempotent reconciliation before adding a second provider.
+- [ ] Canonical publish validation and platform capability matrix.
+- [ ] Credential-vault boundary; credentials never enter browser/public contracts.
+- [ ] Adapter behavior for upload, post creation, scheduling, polling, retry and rate-limit translation.
+- [ ] Publish receipts plus reconciliation for remote-state drift.
+- [ ] Manual approval/scheduling policies before autonomous bulk publishing.
+- [ ] Add a second network adapter only after the first adapter's recovery semantics are demonstrated.
 
 Exit condition: at least two network adapters use the same publisher core without forks.
 
@@ -137,52 +87,42 @@ Exit condition: at least two network adapters use the same publisher core withou
 
 Goal: make real usage data improve product decisions and automation quality.
 
-- Append-only workflow/product events with stable event names and versions.
-- Correlation across project, job, asset, publish attempt, provider, and local node.
-- Operational views: queue depth, retry/dead-letter rate, transform duration, publish success/failure, provider latency/cost.
-- Product views: feature use, workflow completion, abandonment, repeated manual corrections.
-- AI summaries and recommendations consume observed data but do not mutate durable state directly.
-- Build the optimization flywheel only from measured bottlenecks and accepted user corrections.
+- Append-only workflow/product events with stable names/versions.
+- Correlation across project, job, asset, publish attempt, provider and local node.
+- Operational views for queue/retry/dead-letter, transform duration, publish success/failure and provider latency/cost.
+- Product views for feature use, completion, abandonment and repeated manual corrections.
+- AI summaries/recommendations may consume observed data but do not mutate durable state directly.
 
 Exit condition: the system can explain where time/cost/failures occur and recommend what to improve next.
 
 ## M6 — Product RAG, MCP, and agent layer
 
-Goal: expose useful runtime/product context and bounded tools to assistants without turning the core into an agent framework.
+Goal: expose useful runtime/product context and bounded tools without turning the deterministic core into an agent framework.
 
-RAG:
+- RAG indexes approved architecture/contracts/capabilities/runbooks/event summaries/project knowledge as a read-side service.
+- Add evaluation sets before autonomous retrieval-driven decisions.
+- MCP exposes small authorized tools such as project lookup, job status, asset search, publish preview and analytics only after underlying APIs stabilize.
+- MCP/RAG never bypass authorization, transactional truth or queue/workflow invariants.
 
-- Index architecture docs, contracts, adapter capabilities, operational runbooks, workflow/event summaries, and approved project knowledge.
-- Keep retrieval as a read-side service; durable truth remains in transactional stores.
-- Add evaluation sets before using retrieval for autonomous decisions.
-
-MCP:
-
-- Use MCP at the tool/integration boundary for developer tooling and optional end-user tool access.
-- Do not make MCP a dependency of the deterministic job engine.
-- Expose small capabilities such as project lookup, job status, asset search, publish preview, and analytics queries after their underlying APIs are stable.
-
-Exit condition: agents can retrieve project/system context and invoke bounded tools without bypassing authorization or workflow invariants.
+Exit condition: agents can retrieve context and invoke bounded tools without bypassing deterministic system boundaries.
 
 ## M7 — Product surface, deployment, and scale
 
-- Web control plane for projects, assets, workflows, schedules, jobs, approvals, analytics, and adapter connections.
-- Environment promotion and release process.
-- GitHub Packages/container registry only when deployable artifacts exist; avoid publishing every internal workspace package prematurely.
-- GitHub Pages only for documentation/status/static product material when useful, not as an application runtime.
-- Deployment adapters for the selected hosting target.
-- Horizontal worker scaling, queue partitioning, rate-limit coordination, and tenant quotas when metrics demonstrate the need.
-- Security review, audit trails, secret rotation, data retention, and incident runbooks.
+- Web control plane for projects, assets, workflows, schedules, jobs, approvals, analytics and adapter connections.
+- Environment promotion/release process.
+- GHCR/GitHub Packages only when deployable artifacts exist; Pages only for docs/status/static material when useful.
+- Deployment adapters for selected hosting targets.
+- Horizontal scaling, partitioning, rate-limit coordination and tenant quotas only when metrics justify them.
+- Security review, audit trails, secret rotation, retention and incident runbooks.
 
-Exit condition: the platform can be operated and upgraded without coupling product logic to a specific deployment vendor.
+Exit condition: the platform can be operated and upgraded without coupling product logic to one deployment vendor.
 
 ## Immediate execution order
 
-1. Implement `VID-6` production FFmpeg executor with strict sandbox/resource limits and typed argument construction.
-2. Implement `VID-7` media probing, normalized metadata, derived-asset lineage, and reproducible manifests.
-3. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block runtime work on this manual step.
-4. Add media presets and object-store staging on top of the proven executor/probe path.
-5. Add the first real publishing adapter and prove idempotent reconciliation.
-6. Add event-based operational views before expanding product RAG/MCP automation.
+1. Implement `VID-11` first production publishing adapter with a capability matrix, server-side credential boundary, idempotent side effects and reconciliation.
+2. Prove retry/rate-limit/recovery behavior with fake transport in CI and explicit/manual live-provider testing only.
+3. Add a second network adapter only after the first adapter is operationally trustworthy.
+4. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block runtime work on this manual step.
+5. Add event-based operational views before expanding product RAG/MCP automation.
 
-Do not start broad product RAG/MCP automation or many provider integrations before the deterministic media/publishing paths are trustworthy. Engineering Project Brain work is allowed in parallel because it is developer tooling and derived repository intelligence, not a dependency of the runtime core.
+Do not start broad product RAG/MCP automation or many provider integrations before deterministic publishing behavior is trustworthy. Engineering Project Brain work may continue in parallel because it is developer tooling and derived repository intelligence, not a runtime dependency.

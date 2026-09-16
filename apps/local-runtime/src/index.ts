@@ -41,11 +41,7 @@ export function createRuntime<TPorts extends RuntimePorts>(
   ports: TPorts,
   options: RuntimeExecutionOptions,
 ) {
-  const api = new VideoOsApi({
-    memberships: ports.memberships,
-    assets: ports.assets,
-    jobs: ports.jobs,
-  });
+  const api = new VideoOsApi({ memberships: ports.memberships, assets: ports.assets, jobs: ports.jobs });
   const mediaWorker = new MediaWorker(options.mediaExecutor);
   const publisher = new PublisherService(options.publisherAdapters, options.publisherIdempotency);
   const runner = new QueueRunner(ports.jobs, ports.events, {
@@ -60,14 +56,13 @@ export function createRuntime<TPorts extends RuntimePorts>(
       return runner.runOnce<MediaJobPayload>('media', async (job) => {
         const payload = job.payload;
         const source = await ports.assets.getById(payload.assetId);
-        if (!source || source.projectId !== payload.projectId) {
-          throw new Error('media source asset not found in project');
-        }
+        if (!source || source.projectId !== payload.projectId) throw new Error('media source asset not found in project');
 
         const result = await mediaWorker.transform(
           {
             sourceAssetId: payload.assetId,
             ...(payload.transform.preset ? { preset: payload.transform.preset } : {}),
+            ...(payload.transform.frame ? { frame: payload.transform.frame } : {}),
             operations: payload.transform.operations,
             output: payload.transform.output,
           },

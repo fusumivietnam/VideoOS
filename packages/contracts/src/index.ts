@@ -75,9 +75,16 @@ export interface MediaPresetRef {
   version: number;
 }
 
+export interface MediaFrameExtraction {
+  atMs?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface MediaTransformRequest {
   sourceAssetId: EntityId;
   preset?: MediaPresetRef;
+  frame?: MediaFrameExtraction;
   operations: MediaOperation[];
   output: {
     container: string;
