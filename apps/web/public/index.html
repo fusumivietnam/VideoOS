@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VideoOS Launch Control Plane</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">VideoOS · read-only alpha</p>
+        <h1>Launch control plane</h1>
+        <p class="lede">Repository-owned readiness, provider gates, and operator commands. No chat context and no write actions.</p>
+      </div>
+      <div id="readiness" class="status status-loading">Loading…</div>
+    </header>
+
+    <section class="grid two">
+      <article class="card">
+        <h2>Current milestone</h2>
+        <p id="milestone" class="metric">—</p>
+        <p id="milestone-name" class="muted">—</p>
+      </article>
+      <article class="card">
+        <h2>Canonical update</h2>
+        <p id="updated-at" class="metric small">—</p>
+        <p class="muted">Derived from <code>.project/state.json</code>.</p>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Release gates</p>
+          <h2>Controlled launch</h2>
+        </div>
+      </div>
+      <div id="gates" class="gate-list"></div>
+    </section>
+
+    <section class="grid two">
+      <article class="card">
+        <p class="eyebrow">Current focus</p>
+        <h2>What matters now</h2>
+        <ul id="focus" class="focus-list"></ul>
+      </article>
+      <article class="card">
+        <p class="eyebrow">Operator commands</p>
+        <h2>Next actions</h2>
+        <div id="commands" class="command-list"></div>
+      </article>
+    </section>
+
+    <footer>
+      <span>Read-only surface · binds to localhost by default</span>
+      <span id="health">Checking service…</span>
+    </footer>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
