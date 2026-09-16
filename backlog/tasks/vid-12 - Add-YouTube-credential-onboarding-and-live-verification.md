@@ -31,8 +31,11 @@ This task must not place provider secrets in GitHub Actions or public/browser co
 
 - Added project/account-scoped `YouTubeOAuthCredentialStore` plus a local/self-hosted JSON-file implementation with atomic `0600` writes.
 - Added authorization URL, authorization-code exchange, rotation and disconnect lifecycle through `YouTubeCredentialManager`.
+- Authorization URL generation now accepts only public OAuth inputs (`clientId`, redirect URI, state); client secrets are not part of that API surface.
 - Added `RefreshingYouTubeCredentialProvider` with short-lived access-token caching and server-side refresh-token exchange.
 - Added fake-endpoint tests for refresh, connect/rotate/disconnect, bounded diagnostics and scope/consent URL behavior.
 - Added `youtube:credentials` and explicit `VIDEOOS_YOUTUBE_LIVE_SMOKE=1` `youtube:live-smoke` commands.
+- Live-smoke diagnostics redact the canonical `VIDEOOS_YOUTUBE_*` secret variables and remain bounded.
 - Added `docs/operations/youtube-oauth.md` with scope, audit/private-video, secret-handling and manual verification guidance.
+- GitHub Actions CI #160 passed architecture boundaries, strict workspace typecheck and workspace tests; durable PostgreSQL integration remained correctly path-gated/skipped because this change does not modify the durable DB layer.
 - Remaining acceptance gate: run the manual command with a dedicated real YouTube test channel, record the resulting video ID/constraints (without secrets), and only then unblock a second provider.
