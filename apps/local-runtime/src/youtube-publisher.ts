@@ -22,10 +22,7 @@ export interface YouTubeAssetBodyLoader {
 }
 
 export class StoredYouTubeAssetBodyLoader implements YouTubeAssetBodyLoader {
-  constructor(
-    private readonly assets: AssetRepository,
-    private readonly objects: ObjectStore,
-  ) {}
+  constructor(private readonly assets: AssetRepository, private readonly objects: ObjectStore) {}
 
   async load(input: { projectId: string; asset: PublishAsset }): Promise<Uint8Array> {
     const record = await this.assets.getById(input.asset.assetId);
@@ -48,17 +45,8 @@ export interface YouTubeUploadInput {
   idempotencyMarker: string;
 }
 
-export interface YouTubeUploadResult {
-  videoId: string;
-  externalUrl?: string;
-}
-
-export interface YouTubeReconcileInput {
-  accessToken: string;
-  target: PublishTarget;
-  idempotencyMarker: string;
-}
-
+export interface YouTubeUploadResult { videoId: string; externalUrl?: string; }
+export interface YouTubeReconcileInput { accessToken: string; target: PublishTarget; idempotencyMarker: string; }
 export interface YouTubeTransport {
   upload(input: YouTubeUploadInput): Promise<YouTubeUploadResult>;
   reconcile?(input: YouTubeReconcileInput): Promise<YouTubeUploadResult | null>;
@@ -74,20 +62,17 @@ export interface YouTubeAttemptStore {
   put(key: string, value: YouTubeAttemptState): Promise<void>;
   clear(key: string): Promise<void>;
 }
-
 export interface JsonValueStore<T> {
   get(key: string): Promise<T | undefined>;
   put(key: string, value: T): Promise<void>;
   delete(key: string): Promise<void>;
 }
-
 export class JsonBackedYouTubeAttemptStore implements YouTubeAttemptStore {
   constructor(private readonly store: JsonValueStore<YouTubeAttemptState>) {}
   get(key: string): Promise<YouTubeAttemptState | undefined> { return this.store.get(key); }
   put(key: string, value: YouTubeAttemptState): Promise<void> { return this.store.put(key, value); }
   clear(key: string): Promise<void> { return this.store.delete(key); }
 }
-
 export class InMemoryYouTubeAttemptStore implements YouTubeAttemptStore {
   private readonly values = new Map<string, YouTubeAttemptState>();
   async get(key: string): Promise<YouTubeAttemptState | undefined> { return this.values.get(key); }
@@ -100,22 +85,15 @@ export class YouTubePublishError extends Error {
     readonly code: 'invalid-request' | 'rate-limited' | 'retryable' | 'uncertain-outcome' | 'provider-failed',
     message: string,
     readonly retryAfterMs?: number,
-  ) {
-    super(message);
-    this.name = 'YouTubePublishError';
-  }
+  ) { super(message); this.name = 'YouTubePublishError'; }
 }
-
 export class YouTubeTransportError extends Error {
   constructor(
     readonly code: 'rate-limited' | 'retryable' | 'provider-failed',
     message: string,
     readonly outcome: 'not-created' | 'unknown' = 'unknown',
     readonly retryAfterMs?: number,
-  ) {
-    super(message);
-    this.name = 'YouTubeTransportError';
-  }
+  ) { super(message); this.name = 'YouTubeTransportError'; }
 }
 
 export interface YouTubePublisherAdapterOptions {
@@ -126,19 +104,15 @@ export interface YouTubePublisherAdapterOptions {
 
 export class YouTubePublisherAdapter implements NetworkPublisherAdapter {
   readonly network = 'youtube' as const;
-
   constructor(private readonly options: YouTubePublisherAdapterOptions) {}
 
   async publish(request: PublishRequest): Promise<PublishReceipt[]> {
-    if (request.assets.length !== 1) {
-      throw new YouTubePublishError('invalid-request', 'YouTube adapter requires exactly one video asset per publish request');
-    }
+    if (request.assets.length !== 1) throw new YouTubePublishError('invalid-request', 'YouTube adapter requires exactly one video asset per publish request');
     const asset = request.assets[0]!;
     const youtubeTargets = request.targets.filter((target) => target.network === 'youtube');
     if (youtubeTargets.length !== request.targets.length || youtubeTargets.length === 0) {
       throw new YouTubePublishError('invalid-request', 'YouTube adapter accepts only YouTube targets');
     }
-
     const receipts: PublishReceipt[] = [];
     for (const target of youtubeTargets) receipts.push(await this.publishTarget(request, asset, target));
     return receipts;
@@ -149,10 +123,7 @@ export class YouTubePublisherAdapter implements NetworkPublisherAdapter {
     const fingerprint = requestFingerprint(request, target);
     const marker = `videoos-${createHash('sha256').update(key).digest('hex').slice(0, 20)}`;
     const existing = await this.options.attempts.get(key);
-
-    if (existing && existing.fingerprint !== fingerprint) {
-      throw new YouTubePublishError('invalid-request', 'YouTube idempotency key was reused with different publish content');
-    }
+    if (existing && existing.fingerprint !== fingerprint) throw new YouTubePublishError('invalid-request', 'YouTube idempotency key was reused with different publish content');
     if (existing?.status === 'confirmed') return confirmedReceipt(target, existing.videoId, existing.externalUrl);
 
     const accessToken = await this.options.credentials.getAccessToken({ projectId: request.projectId, accountId: target.accountId });
@@ -195,9 +166,7 @@ export class YouTubePublisherAdapter implements NetworkPublisherAdapter {
         throw new YouTubePublishError(error.code, bounded(error.message), error.retryAfterMs);
       }
       await this.options.attempts.put(key, { status: 'uncertain', fingerprint, marker });
-      if (error instanceof YouTubeTransportError) {
-        throw new YouTubePublishError('uncertain-outcome', bounded(error.message), error.retryAfterMs);
-      }
+      if (error instanceof YouTubeTransportError) throw new YouTubePublishError('uncertain-outcome', bounded(error.message), error.retryAfterMs);
       throw new YouTubePublishError('uncertain-outcome', 'YouTube upload failed with an unknown remote outcome');
     }
   }
@@ -207,7 +176,12 @@ export class NodeYouTubeResumableTransport implements YouTubeTransport {
   constructor(private readonly assets: YouTubeAssetBodyLoader, private readonly fetchImpl: typeof fetch = fetch) {}
 
   async upload(input: YouTubeUploadInput): Promise<YouTubeUploadResult> {
-    const body = await this.assets.load({ projectId: input.projectId, asset: input.asset });
+    let body: Uint8Array;
+    try {
+      body = await this.assets.load({ projectId: input.projectId, asset: input.asset });
+    } catch (error) {
+      throw new YouTubeTransportError('provider-failed', bounded(error instanceof Error ? error.message : 'YouTube asset loading failed'), 'not-created');
+    }
     const metadata = {
       snippet: {
         title: input.title,
@@ -263,33 +237,28 @@ export class NodeYouTubeResumableTransport implements YouTubeTransport {
     const search = new URL('https://www.googleapis.com/youtube/v3/search');
     search.searchParams.set('part', 'id');
     search.searchParams.set('type', 'video');
-    search.searchParams.set('forDeveloper', 'true');
+    search.searchParams.set('forMine', 'true');
     search.searchParams.set('q', input.idempotencyMarker);
     search.searchParams.set('maxResults', '10');
-    if (input.target.channelId) search.searchParams.set('channelId', input.target.channelId);
-
-    const response = await this.fetchImpl(search, {
-      headers: { authorization: `Bearer ${input.accessToken}` },
-    });
+    const response = await this.fetchImpl(search, { headers: { authorization: `Bearer ${input.accessToken}` } });
     if (!response.ok) throw await transportErrorFromResponse(response, 'unknown');
     const payload = await response.json().catch(() => null) as { items?: Array<{ id?: { videoId?: unknown } }> } | null;
-    const candidateIds = (payload?.items ?? [])
-      .map((item) => item.id?.videoId)
-      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    const candidateIds = (payload?.items ?? []).map((item) => item.id?.videoId).filter((value): value is string => typeof value === 'string' && value.length > 0);
     if (!candidateIds.length) return null;
 
     const details = new URL('https://www.googleapis.com/youtube/v3/videos');
     details.searchParams.set('part', 'snippet,status');
     details.searchParams.set('id', candidateIds.join(','));
-    const detailResponse = await this.fetchImpl(details, {
-      headers: { authorization: `Bearer ${input.accessToken}` },
-    });
+    const detailResponse = await this.fetchImpl(details, { headers: { authorization: `Bearer ${input.accessToken}` } });
     if (!detailResponse.ok) throw await transportErrorFromResponse(detailResponse, 'unknown');
     const detailPayload = await detailResponse.json().catch(() => null) as {
-      items?: Array<{ id?: unknown; snippet?: { tags?: unknown } }>;
+      items?: Array<{ id?: unknown; snippet?: { tags?: unknown; channelId?: unknown } }>;
     } | null;
     const exact = (detailPayload?.items ?? []).filter((item) =>
-      typeof item.id === 'string' && Array.isArray(item.snippet?.tags) && item.snippet.tags.includes(input.idempotencyMarker),
+      typeof item.id === 'string' &&
+      Array.isArray(item.snippet?.tags) &&
+      item.snippet.tags.includes(input.idempotencyMarker) &&
+      (!input.target.channelId || item.snippet?.channelId === input.target.channelId),
     );
     if (!exact.length) return null;
     if (exact.length > 1) throw new YouTubeTransportError('provider-failed', 'Multiple YouTube videos match one idempotency marker', 'unknown');
@@ -302,32 +271,17 @@ export class NodeYouTubeResumableTransport implements YouTubeTransport {
     try {
       response = await this.fetchImpl(location, {
         method: 'PUT',
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-          'content-length': '0',
-          'content-range': `bytes */${totalBytes}`,
-        },
+        headers: { authorization: `Bearer ${accessToken}`, 'content-length': '0', 'content-range': `bytes */${totalBytes}` },
       });
-    } catch {
-      return null;
-    }
+    } catch { return null; }
     if (response.ok) return parseUploadResponse(response);
     return null;
   }
 }
 
-function attemptKey(request: PublishRequest, target: PublishTarget): string {
-  return ['youtube', request.projectId, target.accountId, target.channelId ?? '', request.idempotencyKey].join(':');
-}
+function attemptKey(request: PublishRequest, target: PublishTarget): string { return ['youtube', request.projectId, target.accountId, target.channelId ?? '', request.idempotencyKey].join(':'); }
 function requestFingerprint(request: PublishRequest, target: PublishTarget): string {
-  return createHash('sha256').update(JSON.stringify({
-    projectId: request.projectId,
-    target,
-    assets: request.assets,
-    caption: request.caption,
-    scheduledAt: request.scheduledAt,
-    metadata: request.metadata,
-  })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ projectId: request.projectId, target, assets: request.assets, caption: request.caption, scheduledAt: request.scheduledAt, metadata: request.metadata })).digest('hex');
 }
 function youtubeTitle(request: PublishRequest): string {
   const configured = request.metadata?.youtubeTitle;
@@ -341,18 +295,11 @@ function youtubePrivacyStatus(request: PublishRequest): 'private' | 'unlisted' |
   return value === 'private' || value === 'unlisted' || value === 'public' ? value : 'private';
 }
 function confirmedReceipt(target: PublishTarget, videoId: string, externalUrl?: string): PublishReceipt {
-  return {
-    target,
-    externalPostId: videoId,
-    externalUrl: externalUrl ?? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`,
-    status: 'published',
-  };
+  return { target, externalPostId: videoId, externalUrl: externalUrl ?? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, status: 'published' };
 }
 async function parseUploadResponse(response: Response): Promise<YouTubeUploadResult> {
   const parsed = await response.json().catch(() => null) as { id?: unknown } | null;
-  if (!parsed || typeof parsed.id !== 'string' || !parsed.id) {
-    throw new YouTubeTransportError('provider-failed', 'YouTube upload succeeded without a video id', 'unknown');
-  }
+  if (!parsed || typeof parsed.id !== 'string' || !parsed.id) throw new YouTubeTransportError('provider-failed', 'YouTube upload succeeded without a video id', 'unknown');
   return { videoId: parsed.id, externalUrl: `https://www.youtube.com/watch?v=${encodeURIComponent(parsed.id)}` };
 }
 async function transportErrorFromResponse(response: Response, outcome: 'not-created' | 'unknown'): Promise<YouTubeTransportError> {
