@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "migrate": "node scripts/migrate.mjs",
+    "test:integration": "tsx scripts/integration.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@types/pg": "8.23.1",
+    "tsx": "4.23.13",
     "typescript": "^5.9.0"
   }
 }
