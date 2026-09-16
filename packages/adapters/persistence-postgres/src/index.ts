@@ -242,6 +242,46 @@ export class PostgresEventOutbox implements EventOutbox {
   }
 }
 
+export class PostgresOutboxEventBus {
+  constructor(private readonly outbox: EventOutbox) {}
+
+  async publish(event: EventOutboxRecord['event']): Promise<void> {
+    await this.outbox.append({
+      id: event.id,
+      event,
+      createdAt: event.occurredAt,
+      attempts: 0,
+    });
+  }
+}
+
+export class PostgresJsonStore<T> {
+  constructor(
+    private readonly db: Queryable,
+    private readonly namespace: string,
+  ) {
+    if (!namespace.trim()) throw new Error('json store namespace is required');
+  }
+
+  async get(key: string): Promise<T | undefined> {
+    const result = await this.db.query<{ value: T }>(
+      'SELECT value FROM json_values WHERE namespace = $1 AND key = $2',
+      [this.namespace, key],
+    );
+    return result.rows[0]?.value;
+  }
+
+  async put(key: string, value: T): Promise<void> {
+    await this.db.query(
+      `INSERT INTO json_values (namespace, key, value, updated_at)
+       VALUES ($1,$2,$3::jsonb,now())
+       ON CONFLICT (namespace, key)
+       DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [this.namespace, key, JSON.stringify(value)],
+    );
+  }
+}
+
 interface OutboxRow extends QueryResultRow {
   id: string;
   event: EventOutboxRecord['event'];
