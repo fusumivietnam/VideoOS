@@ -62,6 +62,7 @@ export class LocalNodeMediaExecutor implements MediaExecutor {
     const request: MediaTransformRequest = {
       sourceAssetId: plan.sourceAssetId,
       ...(plan.preset ? { preset: structuredClone(plan.preset) } : {}),
+      ...(plan.frame ? { frame: structuredClone(plan.frame) } : {}),
       operations: structuredClone(plan.operations),
       output: structuredClone(plan.output),
     };
@@ -124,6 +125,7 @@ export class LocalMediaNodeAgent implements NodeTaskTransport {
       const result = await this.options.executor.execute({
         sourceAssetId: request.sourceAssetId,
         ...(request.preset ? { preset: structuredClone(request.preset) } : {}),
+        ...(request.frame ? { frame: structuredClone(request.frame) } : {}),
         operations: structuredClone(request.operations),
         output: structuredClone(request.output),
         context: {
