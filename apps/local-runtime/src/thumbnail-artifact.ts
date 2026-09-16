@@ -23,11 +23,10 @@ export class ThumbnailAssetFinalizer implements MediaArtifactFinalizer {
 
   async finalize(input: MediaArtifactFinalizeInput): Promise<AssetRecord> {
     const format = imageFormat(input.transform.output.container);
-    if (!input.result.uri.startsWith('file:')) throw new Error('thumbnail finalizer requires a local file URI');
-    const extraction = input.transform.operations.find((operation) => operation.type === 'extract-frame');
-    if (!extraction || input.transform.operations.filter((operation) => operation.type === 'extract-frame').length !== 1) {
-      throw new Error('thumbnail finalizer requires exactly one extract-frame operation');
+    if (!input.transform.frame || input.transform.operations.length) {
+      throw new Error('thumbnail finalizer requires frame mode without media operations');
     }
+    if (!input.result.uri.startsWith('file:')) throw new Error('thumbnail finalizer requires a local file URI');
 
     const filePath = fileURLToPath(input.result.uri);
     const [body, info, media] = await Promise.all([
@@ -65,7 +64,7 @@ export class ThumbnailAssetFinalizer implements MediaArtifactFinalizer {
       lineageExecutor: input.executor,
       manifestVersion: 1,
       outputContainer: input.transform.output.container,
-      frameAtMs: extraction.atMs ?? REPRESENTATIVE_FRAME_DEFAULT_MS,
+      frameAtMs: input.transform.frame.atMs ?? REPRESENTATIVE_FRAME_DEFAULT_MS,
     };
     if (input.executorVersion) metadata.lineageExecutorVersion = input.executorVersion;
     if (input.transform.preset) {
@@ -99,15 +98,8 @@ export class RoutedMediaArtifactFinalizer implements MediaArtifactFinalizer {
   ) {}
 
   finalize(input: MediaArtifactFinalizeInput): Promise<AssetRecord> {
-    return isImageContainer(input.transform.output.container)
-      ? this.thumbnail.finalize(input)
-      : this.video.finalize(input);
+    return input.transform.frame ? this.thumbnail.finalize(input) : this.video.finalize(input);
   }
-}
-
-function isImageContainer(container: string): boolean {
-  const value = container.toLowerCase();
-  return value === 'jpg' || value === 'jpeg' || value === 'png';
 }
 
 function imageFormat(container: string): { extension: 'jpg' | 'png'; contentType: string } {
