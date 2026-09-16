@@ -1,5 +1,6 @@
 import type { MediaTransformRequest } from '@videoos/contracts';
 import {
+  assertLeaseValid,
   parseMediaNodeResult,
   type NodeExecutionRequirements,
   type NodeTaskBroker,
@@ -19,6 +20,14 @@ export interface LocalNodeMediaExecutorOptions {
   requirements?:
     | NodeExecutionRequirements
     | ((plan: MediaExecutionPlan) => NodeExecutionRequirements | undefined);
+}
+
+export interface LocalMediaNodeAgentOptions {
+  nodeId: string;
+  executor: MediaExecutor;
+  executorName?: string;
+  executorVersion?: string;
+  now?: () => Date;
 }
 
 export class LocalNodeExecutionError extends Error {
@@ -96,6 +105,61 @@ export class LocalNodeMediaExecutor implements MediaExecutor {
   }
 }
 
+export class LocalMediaNodeAgent implements NodeTaskTransport {
+  private readonly now: () => Date;
+  private readonly executorName: string;
+
+  constructor(private readonly options: LocalMediaNodeAgentOptions) {
+    if (!options.nodeId.trim()) throw new Error('local media node agent requires nodeId');
+    this.now = options.now ?? (() => new Date());
+    this.executorName = options.executorName?.trim() || 'media-executor';
+  }
+
+  async execute(lease: NodeTaskLease): Promise<NodeTaskResult> {
+    try {
+      assertLeaseValid(lease, this.options.nodeId, this.now());
+      if (lease.payload.kind !== 'media-transform') throw new Error('node lease is not a media task');
+
+      const request = lease.payload.request;
+      const result = await this.options.executor.execute({
+        sourceAssetId: request.sourceAssetId,
+        ...(request.preset ? { preset: structuredClone(request.preset) } : {}),
+        operations: structuredClone(request.operations),
+        output: structuredClone(request.output),
+        context: {
+          projectId: lease.projectId,
+          jobId: lease.taskId,
+          sourceObjectKey: lease.payload.sourceObjectKey,
+        },
+      });
+
+      const output: Record<string, unknown> = {
+        assetId: result.assetId,
+        uri: result.uri,
+        executor: this.executorName,
+      };
+      if (this.options.executorVersion) output.executorVersion = this.options.executorVersion;
+      return {
+        leaseId: lease.leaseId,
+        taskId: lease.taskId,
+        nodeId: this.options.nodeId,
+        status: 'succeeded',
+        output,
+        completedAt: this.now().toISOString(),
+      };
+    } catch (error) {
+      return {
+        leaseId: lease.leaseId,
+        taskId: lease.taskId,
+        nodeId: this.options.nodeId,
+        status: 'failed',
+        error: boundedAgentError(error),
+        completedAt: this.now().toISOString(),
+      };
+    }
+  }
+}
+
 function mediaResult(result: NodeTaskResult): { assetId: string; uri: string } {
   try {
     const parsed = parseMediaNodeResult(result);
@@ -109,6 +173,11 @@ function sanitizeRemoteError(error: string | undefined): string {
   if (!error) return 'local node media execution failed';
   const normalized = error.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 512);
   return normalized ? `local node media execution failed: ${normalized}` : 'local node media execution failed';
+}
+
+function boundedAgentError(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'local media node execution failed';
+  return message.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 2_048) || 'local media node execution failed';
 }
 
 function positiveInteger(value: number, label: string): number {
