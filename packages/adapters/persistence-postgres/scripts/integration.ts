@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import {
+  checkPostgresReadiness,
   PostgresAssetRepository,
   PostgresEventOutbox,
   PostgresJobQueue,
@@ -29,6 +30,12 @@ const atomicRollbackEventId = `event:atomic-rollback:${suffix}`;
 const rollbackOutboxId = `outbox:rollback:${suffix}`;
 
 try {
+  assert.deepEqual(await checkPostgresReadiness(pool), {
+    status: 'ready',
+    checks: { database: 'ready', migrations: 'ready' },
+    missingMigrations: [],
+  });
+
   await pool.query('INSERT INTO projects (id, name) VALUES ($1, $2)', [projectId, 'Integration Project']);
   await pool.query(
     'INSERT INTO project_memberships (project_id, principal_id, role) VALUES ($1, $2, $3)',

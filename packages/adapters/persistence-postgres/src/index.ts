@@ -6,8 +6,57 @@ import type { AssetRecord, AssetRepository } from '@videoos/storage';
 
 export type Queryable = Pick<PoolClient, 'query'>;
 
+export const REQUIRED_POSTGRES_MIGRATIONS = [
+  '001_durable_core.sql',
+  '002_runtime_support.sql',
+] as const;
+
+export interface PostgresReadiness {
+  status: 'ready' | 'not-ready';
+  checks: {
+    database: 'ready' | 'not-ready';
+    migrations: 'ready' | 'not-ready';
+  };
+  missingMigrations: string[];
+}
+
 export function createPostgresPool(connectionString: string): Pool {
   return new Pool({ connectionString });
+}
+
+export async function checkPostgresReadiness(db: Queryable): Promise<PostgresReadiness> {
+  try {
+    await db.query('SELECT 1');
+  } catch {
+    return {
+      status: 'not-ready',
+      checks: { database: 'not-ready', migrations: 'not-ready' },
+      missingMigrations: [...REQUIRED_POSTGRES_MIGRATIONS],
+    };
+  }
+
+  try {
+    const result = await db.query<{ name: string }>(
+      'SELECT name FROM schema_migrations WHERE name = ANY($1::text[])',
+      [[...REQUIRED_POSTGRES_MIGRATIONS]],
+    );
+    const applied = new Set(result.rows.map((row) => row.name));
+    const missingMigrations = REQUIRED_POSTGRES_MIGRATIONS.filter((name) => !applied.has(name));
+    return {
+      status: missingMigrations.length === 0 ? 'ready' : 'not-ready',
+      checks: {
+        database: 'ready',
+        migrations: missingMigrations.length === 0 ? 'ready' : 'not-ready',
+      },
+      missingMigrations,
+    };
+  } catch {
+    return {
+      status: 'not-ready',
+      checks: { database: 'ready', migrations: 'not-ready' },
+      missingMigrations: [...REQUIRED_POSTGRES_MIGRATIONS],
+    };
+  }
 }
 
 export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
