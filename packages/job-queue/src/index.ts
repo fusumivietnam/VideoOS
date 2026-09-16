@@ -20,6 +20,7 @@ export interface EnqueueOptions {
 
 export interface JobQueue {
   enqueue<T>(queue: string, id: string, payload: T, options?: EnqueueOptions): Promise<void>;
+  get<T = unknown>(id: string): Promise<QueueJob<T> | null>;
   lease<T>(queue: string, workerId: string, leaseMs: number, now?: Date): Promise<QueueJob<T> | null>;
   complete(id: string): Promise<void>;
   fail(id: string, error: string, retryAt: string): Promise<void>;
@@ -41,10 +42,27 @@ export class InMemoryJobQueue implements JobQueue {
     });
   }
 
+  async get<T = unknown>(id: string): Promise<QueueJob<T> | null> {
+    const job = this.jobs.get(id);
+    return job ? structuredClone(job) as QueueJob<T> : null;
+  }
+
   async lease<T>(queue: string, workerId: string, leaseMs: number, now = new Date()): Promise<QueueJob<T> | null> {
     const nowIso = now.toISOString();
+
+    for (const job of this.jobs.values()) {
+      const leaseExpired = job.status === 'leased' && !!job.leaseExpiresAt && job.leaseExpiresAt <= nowIso;
+      if (leaseExpired && job.attempts >= job.maxAttempts) {
+        job.status = 'dead-letter';
+        job.lastError ??= 'lease expired after maximum attempts';
+        delete job.leaseOwner;
+        delete job.leaseExpiresAt;
+      }
+    }
+
     const candidate = [...this.jobs.values()]
       .filter((job) => job.queue === queue)
+      .filter((job) => job.attempts < job.maxAttempts)
       .filter((job) => job.status === 'ready' || (job.status === 'leased' && !!job.leaseExpiresAt && job.leaseExpiresAt <= nowIso))
       .filter((job) => job.availableAt <= nowIso)
       .sort((a, b) => a.availableAt.localeCompare(b.availableAt))[0];
