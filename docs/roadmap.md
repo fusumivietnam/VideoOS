@@ -38,24 +38,26 @@ In this milestone:
 - [x] Prevent lease recovery from exceeding `maxAttempts`; exhausted jobs go to dead letter.
 - [x] Generic orchestrator queue runner with lifecycle events, retries, and dead-letter result.
 - [x] Dependency-light tests that run through the existing single CI workflow.
+- [x] Add API job-status query with project authorization and a minimal non-sensitive status projection.
 - [ ] Add an application composition root that wires API, queue runner, and in-memory adapters into a runnable local demo.
 - [ ] Add end-to-end smoke scenario for one media job and one publish job using fake provider/executor adapters.
-- [ ] Add API job-status query with project authorization.
 - [ ] Generate and commit `pnpm-lock.yaml`, then switch CI installation to frozen lockfile and enable dependency caching.
 
 Exit condition: a command can enter through the API facade, execute through a queue-backed runner, emit lifecycle events, and be asserted end-to-end without external infrastructure.
 
-## M2 — Durable local-first backbone — next
+## M2 — Durable local-first backbone — active in parallel
 
 Goal: replace only the persistence points required by the M1 vertical slice while preserving all public contracts.
 
-Planned order:
+Progress:
 
-1. Postgres-backed project/job/event metadata repositories and transactional outbox.
-2. Durable queue adapter. Start with a Postgres-backed queue when sufficient; introduce Redis/JetStream only if throughput/latency requirements justify another moving part.
-3. S3-compatible object-store adapter, with MinIO/local filesystem for development and a cloud-compatible backend for deployment.
-4. Durable identity/membership projection.
-5. Migration tooling, local compose/dev bootstrap, backup/restore notes, and health checks.
+- [x] PostgreSQL-backed membership, asset, job queue, and transactional outbox adapters.
+- [x] Durable queue leasing with `FOR UPDATE SKIP LOCKED`, inspection, retry/dead-letter semantics, and final-lease exhaustion protection.
+- [x] Transaction helper so durable state and outbox writes can share one PostgreSQL transaction.
+- [x] Advisory-locked SQL migration runner and local PostgreSQL Docker Compose bootstrap with healthcheck.
+- [ ] S3-compatible object-store adapter, with MinIO/local filesystem for development and a cloud-compatible backend for deployment.
+- [ ] Backup/restore notes and operational health endpoints for the durable runtime.
+- [ ] Wire the durable adapters through an application composition root after the in-memory vertical slice is proven.
 
 Exit condition: restart-safe execution with no loss of queued work or workflow metadata.
 
@@ -135,11 +137,11 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Finish M1 tests and composition root.
-2. Prove one in-memory media and publish end-to-end scenario.
-3. Add job-status API and event-based operational view.
-4. Commit a lockfile and tighten the existing CI rather than adding more workflows.
-5. Start M2 with Postgres/outbox persistence.
-6. Add the first real media executor, then the first real publishing adapter.
+1. Add the application composition root and prove one in-memory media + publish end-to-end scenario.
+2. Commit a lockfile and tighten the existing CI rather than adding more workflows.
+3. Wire PostgreSQL adapters into the composition root behind the same ports.
+4. Add the first S3-compatible object-store adapter.
+5. Add the first real media executor, then the first real publishing adapter.
+6. Add event-based operational views before expanding RAG/MCP automation.
 
 Do not start RAG/MCP-heavy automation or broad platform integrations before the durable execution/event path is trustworthy; otherwise they amplify an unstable substrate instead of improving it.

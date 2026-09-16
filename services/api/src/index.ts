@@ -1,5 +1,5 @@
 import type { PublishRequest } from '@videoos/contracts';
-import type { JobQueue } from '@videoos/job-queue';
+import type { JobQueue, QueueJobStatus } from '@videoos/job-queue';
 import type { MembershipRepository, Principal } from '@videoos/identity';
 import { authorizeProjectCapability } from '@videoos/identity';
 import type { AssetRepository } from '@videoos/storage';
@@ -23,12 +23,40 @@ export interface CreateMediaJobCommand {
   transform: Record<string, unknown>;
 }
 
+export interface JobStatusView {
+  jobId: string;
+  queue: string;
+  status: QueueJobStatus;
+  attempts: number;
+  maxAttempts: number;
+  availableAt: string;
+  leaseExpiresAt?: string;
+}
+
 export class VideoOsApi {
   constructor(private readonly dependencies: ApiDependencies) {}
 
   async listAssets(principal: Principal, projectId: string) {
     await authorizeProjectCapability(this.dependencies.memberships, principal, projectId, 'asset.read');
     return this.dependencies.assets.listByProject(projectId);
+  }
+
+  async getJobStatus(principal: Principal, projectId: string, jobId: string): Promise<JobStatusView | null> {
+    await authorizeProjectCapability(this.dependencies.memberships, principal, projectId, 'project.read');
+
+    const job = await this.dependencies.jobs.get(jobId);
+    if (!job || projectIdFromPayload(job.payload) !== projectId) return null;
+
+    const view: JobStatusView = {
+      jobId: job.id,
+      queue: job.queue,
+      status: job.status,
+      attempts: job.attempts,
+      maxAttempts: job.maxAttempts,
+      availableAt: job.availableAt,
+    };
+    if (job.leaseExpiresAt) view.leaseExpiresAt = job.leaseExpiresAt;
+    return view;
   }
 
   async createPublish(command: CreatePublishCommand): Promise<{ jobId: string }> {
@@ -62,4 +90,10 @@ export class VideoOsApi {
     });
     return { jobId: command.jobId };
   }
+}
+
+function projectIdFromPayload(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
+  const projectId = (payload as Record<string, unknown>).projectId;
+  return typeof projectId === 'string' && projectId.length > 0 ? projectId : null;
 }
