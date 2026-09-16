@@ -4,9 +4,7 @@ import type { MembershipRepository, ProjectMembership } from '@videoos/identity'
 import type { EnqueueOptions, JobQueue, QueueJob } from '@videoos/job-queue';
 import type { AssetRecord, AssetRepository } from '@videoos/storage';
 
-export interface Queryable {
-  query<R extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]): Promise<{ rows: R[]; rowCount: number | null }>;
-}
+export type Queryable = Pick<PoolClient, 'query'>;
 
 export function createPostgresPool(connectionString: string): Pool {
   return new Pool({ connectionString });
@@ -63,7 +61,8 @@ export class PostgresAssetRepository implements AssetRepository {
 
   async getById(id: string): Promise<AssetRecord | null> {
     const result = await this.db.query<AssetRow>('SELECT * FROM assets WHERE id = $1', [id]);
-    return result.rows[0] ? mapAsset(result.rows[0]) : null;
+    const row = result.rows[0];
+    return row ? mapAsset(row) : null;
   }
 
   async listByProject(projectId: string): Promise<AssetRecord[]> {
@@ -88,17 +87,18 @@ interface AssetRow extends QueryResultRow {
 }
 
 function mapAsset(row: AssetRow): AssetRecord {
-  return {
+  const asset: AssetRecord = {
     id: row.id,
     projectId: row.project_id,
     kind: row.kind,
     objectKey: row.object_key,
     contentType: row.content_type,
     bytes: Number(row.bytes),
-    checksumSha256: row.checksum_sha256 ?? undefined,
-    metadata: row.metadata ?? undefined,
     createdAt: toIso(row.created_at),
   };
+  if (row.checksum_sha256 !== null) asset.checksumSha256 = row.checksum_sha256;
+  if (row.metadata !== null) asset.metadata = row.metadata;
+  return asset;
 }
 
 export class PostgresJobQueue implements JobQueue {
@@ -136,7 +136,9 @@ export class PostgresJobQueue implements JobQueue {
          RETURNING *`,
         [row.id, workerId, leaseExpiresAt],
       );
-      return mapQueueJob<T>(updated.rows[0]);
+      const updatedRow = updated.rows[0];
+      if (!updatedRow) throw new Error(`queue job disappeared while leasing: ${row.id}`);
+      return mapQueueJob<T>(updatedRow);
     });
   }
 
@@ -181,7 +183,7 @@ interface QueueJobRow extends QueryResultRow {
 }
 
 function mapQueueJob<T>(row: QueueJobRow): QueueJob<T> {
-  return {
+  const job: QueueJob<T> = {
     id: row.id,
     queue: row.queue,
     payload: row.payload as T,
@@ -189,10 +191,11 @@ function mapQueueJob<T>(row: QueueJobRow): QueueJob<T> {
     attempts: row.attempts,
     maxAttempts: row.max_attempts,
     availableAt: toIso(row.available_at),
-    leaseOwner: row.lease_owner ?? undefined,
-    leaseExpiresAt: row.lease_expires_at ? toIso(row.lease_expires_at) : undefined,
-    lastError: row.last_error ?? undefined,
   };
+  if (row.lease_owner !== null) job.leaseOwner = row.lease_owner;
+  if (row.lease_expires_at !== null) job.leaseExpiresAt = toIso(row.lease_expires_at);
+  if (row.last_error !== null) job.lastError = row.last_error;
+  return job;
 }
 
 export class PostgresEventOutbox implements EventOutbox {
@@ -238,13 +241,14 @@ interface OutboxRow extends QueryResultRow {
 }
 
 function mapOutbox(row: OutboxRow): EventOutboxRecord {
-  return {
+  const record: EventOutboxRecord = {
     id: row.id,
     event: row.event,
     createdAt: toIso(row.created_at),
-    deliveredAt: row.delivered_at ? toIso(row.delivered_at) : undefined,
     attempts: row.attempts,
   };
+  if (row.delivered_at !== null) record.deliveredAt = toIso(row.delivered_at);
+  return record;
 }
 
 function toIso(value: Date | string): string {
