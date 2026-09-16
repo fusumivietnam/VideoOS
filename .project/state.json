@@ -1,15 +1,15 @@
 {
   "project": "VideoOS",
   "updatedAt": "2026-09-16",
-  "milestone": "M2",
-  "milestoneName": "Durable local-first backbone",
+  "milestone": "M3",
+  "milestoneName": "Media production path",
   "status": "active",
   "currentFocus": [
-    "complete VID-2 S3-compatible object storage; local filesystem edge is implemented and provider-backed S3 support remains",
-    "finish VID-4 operational safety after S3 recovery guidance is defined",
-    "bootstrap the Understand Anything derived graph locally"
+    "VID-6 production FFmpeg executor with strict sandboxing and resource limits",
+    "VID-7 probe/metadata extraction and derived-asset lineage",
+    "VID-5 bootstrap the Understand Anything derived graph locally without blocking runtime work"
   ],
-  "completedMilestones": ["M0", "M1"],
+  "completedMilestones": ["M0", "M1", "M2"],
   "completedCapabilities": [
     "PostgreSQL membership, asset metadata, durable queue and outbox adapters",
     "PostgreSQL runtime composition",
@@ -17,15 +17,14 @@
     "atomic terminal queue settlement plus lifecycle outbox persistence",
     "repository-owned canonical Project Brain state",
     "sandboxed dependency-free local filesystem object storage",
+    "provider-backed S3-compatible object storage with signed read URLs",
     "path-gated PostgreSQL durable integration in the single CI quality job",
     "PostgreSQL 18-compatible local Compose persistence",
     "durable runtime liveness and migration-aware readiness",
-    "local-first PostgreSQL plus filesystem backup/restore runbook"
+    "PostgreSQL plus filesystem/S3-compatible backup and recovery guidance"
   ],
-  "blockers": [
-    "VID-2 provider-backed S3 adapter requires an intentional SDK and lockfile update"
-  ],
-  "nextTasks": ["VID-2", "VID-4", "VID-5"],
+  "blockers": [],
+  "nextTasks": ["VID-6", "VID-7", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",

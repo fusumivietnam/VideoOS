@@ -46,11 +46,11 @@ Delivered:
 
 Exit condition met: commands enter through the API facade, execute through queue-backed runners, emit lifecycle events, and are asserted end-to-end without external infrastructure.
 
-## M2 — Durable local-first backbone — active
+## M2 — Durable local-first backbone — complete
 
 Goal: replace only the persistence points required by the M1 vertical slice while preserving public contracts and restart safety.
 
-Progress:
+Delivered:
 
 - [x] PostgreSQL-backed membership, asset, job queue, and transactional outbox adapters.
 - [x] Durable queue leasing with `FOR UPDATE SKIP LOCKED`, inspection, retry/dead-letter semantics, and final-lease exhaustion protection.
@@ -60,13 +60,16 @@ Progress:
 - [x] Durable publisher idempotency storage.
 - [x] Provider-neutral queue settlement boundary.
 - [x] PostgreSQL terminal queue settlement (`complete`/`fail`) + lifecycle outbox append in one transaction, with rollback coverage.
-- [ ] Add an S3-compatible object-store adapter, with local filesystem/MinIO for development and a cloud-compatible backend for deployment.
-- [ ] Add targeted PostgreSQL integration gating once the durable runtime path is stable, without starting a database on unrelated PRs.
-- [ ] Add backup/restore notes and operational health/readiness endpoints for the durable runtime.
+- [x] Dependency-free filesystem object store for the cheapest local loop.
+- [x] Provider-backed S3-compatible object-store adapter for AWS S3/MinIO/R2-style deployment, including signed read URLs.
+- [x] Targeted PostgreSQL integration gating inside the existing single CI quality job; unrelated PRs avoid database startup cost.
+- [x] PostgreSQL 18-compatible local Compose persistence.
+- [x] Durable runtime liveness plus migration-aware readiness.
+- [x] Backup/restore and recovery guidance for PostgreSQL plus filesystem/S3-compatible object stores.
 
 Reliability note: lease acquisition and the informational `job.execution.started` event are separate. A crash after lease acquisition is handled through lease expiry/retry; correctness-critical terminal queue state is committed atomically with its lifecycle outbox event.
 
-Exit condition: restart-safe execution with no loss of queued work or terminal workflow metadata.
+Exit condition met: queued work and terminal workflow metadata are restart-safe; control-plane state and object bytes have documented recovery paths, and provider selection remains behind stable ports.
 
 ## M2.K — Engineering project brain — active
 
@@ -80,7 +83,7 @@ Progress:
 - [x] Make `AGENTS.md` direct fresh sessions through state, roadmap, tasks, decisions, architecture, and derived knowledge.
 - [x] Document local Understand Anything usage for Claude Code and Codex without adding runtime/CI dependencies.
 - [x] Ignore local `.ua` scratch while allowing reviewed shareable graph/config artifacts to be committed.
-- [ ] Bootstrap and review the initial `.ua` graph locally in a supported developer environment.
+- [ ] Bootstrap and review the initial `.ua` graph locally in a supported developer environment (`VID-5`).
 
 Canonical engineering state:
 
@@ -105,18 +108,17 @@ Later boundary:
 
 Exit condition: a fresh coding-agent session can discover current milestone, blockers, decisions, and code relationships from repository state without requiring historical chat context.
 
-## M3 — Media production path
+## M3 — Media production path — active
 
 Goal: turn the media worker into a safe, repeatable production pipeline.
 
-- FFmpeg executor adapter with strict argument construction, path sandboxing, time/resource limits, and deterministic output naming.
-- Probe/metadata extraction and normalized asset metadata.
-- Derived-asset lineage and project-scoped object keys.
-- Thumbnail, subtitle, audio normalization, resize/crop, and format presets.
-- Local-node execution as an optional adapter for GPU/heavy workloads.
-- Reproducible execution manifests so the same transform can be replayed.
+- [ ] `VID-6`: FFmpeg executor adapter with strict typed argument construction, path sandboxing, time/resource limits, bounded stderr, deterministic output naming, and normalized failures.
+- [ ] `VID-7`: ffprobe/metadata extraction, normalized media metadata, derived-asset lineage, and reproducible execution manifests.
+- [ ] Thumbnail, subtitle, audio normalization, resize/crop, and format presets built on the same typed executor boundary.
+- [ ] Local-node execution as an optional adapter for GPU/heavy workloads.
+- [ ] Deterministic object-store staging so filesystem/S3 backends use the same media pipeline semantics.
 
-Exit condition: source asset -> deterministic derived asset works locally and through a worker node.
+Exit condition: source asset -> deterministic derived asset works locally and through a worker node with reproducible metadata/lineage.
 
 ## M4 — Multi-network publishing
 
@@ -176,12 +178,11 @@ Exit condition: the platform can be operated and upgraded without coupling produ
 
 ## Immediate execution order
 
-1. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available; do not block runtime work on this manual step.
-2. Add the first S3-compatible object-store adapter, local-first (`VID-2`).
-3. Add a targeted PostgreSQL integration gate inside the existing CI workflow without database cost on unrelated PRs (`VID-3`).
-4. Add durable runtime health/readiness plus backup/restore notes and close M2 (`VID-4`).
-5. Add the first real media executor (FFmpeg) with strict sandbox/resource limits.
-6. Add the first real publishing adapter and prove idempotent reconciliation.
-7. Add event-based operational views before expanding product RAG/MCP automation.
+1. Implement `VID-6` production FFmpeg executor with strict sandbox/resource limits and typed argument construction.
+2. Implement `VID-7` media probing, normalized metadata, derived-asset lineage, and reproducible manifests.
+3. Bootstrap/review the initial Understand Anything `.ua` graph locally when a supported developer environment is available (`VID-5`); do not block runtime work on this manual step.
+4. Add media presets and object-store staging on top of the proven executor/probe path.
+5. Add the first real publishing adapter and prove idempotent reconciliation.
+6. Add event-based operational views before expanding product RAG/MCP automation.
 
-Do not start broad product RAG/MCP automation or many provider integrations before the durable execution/event path is trustworthy. Engineering Project Brain work is allowed earlier because it is developer tooling and derived repository intelligence, not a dependency of the runtime core.
+Do not start broad product RAG/MCP automation or many provider integrations before the deterministic media/publishing paths are trustworthy. Engineering Project Brain work is allowed in parallel because it is developer tooling and derived repository intelligence, not a dependency of the runtime core.

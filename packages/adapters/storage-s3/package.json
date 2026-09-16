@@ -1,0 +1,21 @@
+{
+  "name": "@videoos/adapter-storage-s3",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "node --import tsx --test test/s3-object-store.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1132.0",
+    "@aws-sdk/s3-request-presigner": "3.1132.0",
+    "@videoos/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "4.23.13",
+    "typescript": "^5.9.2"
+  }
+}
