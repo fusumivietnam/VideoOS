@@ -1,0 +1,35 @@
+name: Architecture / RFC
+description: Propose a cross-service contract, persistence, or platform change
+title: "rfc: "
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What limitation in the current architecture is forcing this change?
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Proposed decision
+      description: State the proposed boundary/contract and what remains unchanged.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include the simplest viable alternative and why it is insufficient.
+  - type: textarea
+    id: migration
+    attributes:
+      label: Compatibility and migration
+      description: Contract versions, data migration, rollout, rollback, and failure modes.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / trigger
+      description: Metrics, incidents, scale limits, or concrete requirements that justify adding complexity.
