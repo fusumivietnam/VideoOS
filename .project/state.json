@@ -5,9 +5,9 @@
   "milestoneName": "Durable local-first backbone",
   "status": "active",
   "currentFocus": [
-    "bootstrap the Understand Anything derived graph locally",
-    "S3-compatible object storage",
-    "targeted PostgreSQL integration gating"
+    "complete VID-2 S3-compatible object storage; local filesystem edge is implemented and S3 provider support remains",
+    "targeted PostgreSQL integration gating",
+    "bootstrap the Understand Anything derived graph locally"
   ],
   "completedMilestones": ["M0", "M1"],
   "completedCapabilities": [
@@ -15,10 +15,11 @@
     "PostgreSQL runtime composition",
     "durable publisher idempotency storage",
     "atomic terminal queue settlement plus lifecycle outbox persistence",
-    "repository-owned canonical Project Brain state"
+    "repository-owned canonical Project Brain state",
+    "sandboxed dependency-free local filesystem object storage"
   ],
   "blockers": [],
-  "nextTasks": ["VID-5", "VID-2", "VID-3", "VID-4"],
+  "nextTasks": ["VID-2", "VID-3", "VID-5", "VID-4"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",

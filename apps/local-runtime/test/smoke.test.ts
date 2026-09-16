@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import type { MediaTransformRequest, PublishRequest } from '@videoos/contracts';
+import { FileSystemObjectStore } from '../src/filesystem-object-store.js';
 import { createInMemoryRuntime } from '../src/index.js';
 
 class FakeMediaExecutor {
@@ -122,4 +127,77 @@ test('local runtime executes media and publish jobs end to end', async () => {
   } finally {
     for (const unsubscribe of unsubscribers) unsubscribe();
   }
+});
+
+async function withFileSystemStore(
+  run: (store: FileSystemObjectStore, root: string) => Promise<void>,
+): Promise<void> {
+  const root = await mkdtemp(join(tmpdir(), 'videoos-object-store-'));
+  try {
+    await run(new FileSystemObjectStore(root), root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test('filesystem object store round-trips project-scoped nested objects and deletes idempotently', async () => {
+  await withFileSystemStore(async (store, root) => {
+    const body = new TextEncoder().encode('hello VideoOS');
+    const checksumSha256 = createHash('sha256').update(body).digest('hex');
+    const key = 'projects/project-1/assets/asset-1/source.txt';
+
+    await store.put({ key, contentType: 'text/plain', body, checksumSha256 });
+    assert.deepEqual(await store.get(key), body);
+    assert.equal((await readFile(join(root, key))).toString('utf8'), 'hello VideoOS');
+
+    await store.delete(key);
+    assert.equal(await store.get(key), null);
+    await store.delete(key);
+  });
+});
+
+test('filesystem object store rejects traversal and ambiguous object keys', async () => {
+  await withFileSystemStore(async (store) => {
+    const body = new Uint8Array([1]);
+    const unsafeKeys = [
+      '../escape.bin',
+      '/absolute.bin',
+      'projects//asset.bin',
+      'projects/./asset.bin',
+      'projects/../asset.bin',
+      'projects\\asset.bin',
+    ];
+
+    for (const key of unsafeKeys) {
+      await assert.rejects(
+        store.put({ key, contentType: 'application/octet-stream', body }),
+        /object key|absolute object keys/,
+      );
+    }
+  });
+});
+
+test('filesystem object store rejects checksum mismatch before committing an object', async () => {
+  await withFileSystemStore(async (store) => {
+    const key = 'projects/project-1/assets/asset-2/output.bin';
+    await assert.rejects(
+      store.put({
+        key,
+        contentType: 'application/octet-stream',
+        body: new Uint8Array([1, 2, 3]),
+        checksumSha256: '0'.repeat(64),
+      }),
+      /checksum mismatch/,
+    );
+    assert.equal(await store.get(key), null);
+  });
+});
+
+test('filesystem object store does not expose local paths as signed URLs', async () => {
+  await withFileSystemStore(async (store) => {
+    await assert.rejects(
+      store.signedReadUrl('projects/project-1/assets/asset-1/source.txt', 60),
+      /signed read URLs are not supported/,
+    );
+  });
 });
