@@ -95,7 +95,7 @@ test('derived asset finalizer persists object bytes and reproducible lineage ide
     const second = await finalizer.finalize(input);
     assert.deepEqual(second, first);
     assert.equal(first.kind, 'derived-video');
-    assert.equal(first.objectKey, 'projects/project_one/assets/asset_derived_123/output.mp4');
+    assert.equal(first.objectKey, 'projects/project:one/assets/asset:derived:123/output.mp4');
     assert.equal(first.bytes, 4);
     assert.equal(first.createdAt, '2026-09-16T00:00:00.000Z');
     assert.equal(first.metadata?.lineageSourceAssetId, 'asset:source');
