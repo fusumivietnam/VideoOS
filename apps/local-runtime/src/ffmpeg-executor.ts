@@ -57,7 +57,7 @@ export class FfmpegExecutor implements MediaExecutor {
   private readonly maxStderrBytes: number;
   private readonly maxOutputBytes: number;
   private readonly runner: FfmpegProcessRunner;
-  private readonly subtitleStager?: SubtitleStager;
+  private readonly subtitleStager: SubtitleStager | undefined;
   private readonly resolveSourcePath: (plan: MediaExecutionPlan) => Promise<string>;
 
   constructor(options: FfmpegExecutorOptions) {
