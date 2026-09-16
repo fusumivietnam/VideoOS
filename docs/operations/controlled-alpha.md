@@ -37,6 +37,23 @@ Stop and remove the alpha container:
 pnpm alpha:down
 ```
 
+## Optional protected mode
+
+For private/remote evaluation behind a trusted TLS/reverse-proxy boundary, enable the dependency-free alpha access gate with **two distinct server-side secrets**:
+
+```bash
+export VIDEOOS_WEB_ACCESS_CODE="use-a-long-random-access-code"
+export VIDEOOS_WEB_SESSION_SECRET="use-a-different-random-session-secret-at-least-32-characters"
+export VIDEOOS_WEB_COOKIE_SECURE=1
+pnpm alpha:up
+```
+
+Protected mode exchanges the access code for a short-lived signed `HttpOnly; SameSite=Strict` cookie. The raw access code and HMAC session secret are not returned to the browser, stored in repository files, or written to application logs.
+
+The access gate protects the cockpit and `/api/launch-state`; `/health` remains public for liveness checks. This is still a shared alpha access boundary, **not** the final project/user membership authentication system.
+
+When running the standalone Node server outside Compose, binding a non-loopback address without protected mode fails closed. The alpha container uses `VIDEOOS_WEB_ALLOW_UNAUTHENTICATED_NON_LOOPBACK=1` only because the process must listen on the container interface while Compose publishes it exclusively to host `127.0.0.1:3000`. Do not copy that override into a public host bind.
+
 ## Container boundaries
 
 The alpha image:
@@ -72,4 +89,4 @@ must remain authoritative. A red result is expected until the external live-prov
 
 ## Public exposure later
 
-Before exposing a VideoOS web surface beyond localhost/private operator access, add the authenticated product surface and an explicit deployment boundary such as an authenticated reverse proxy or platform ingress with TLS, request limits, audit visibility, and environment-specific secret handling. Do not weaken the current localhost binding simply to make the alpha reachable from the internet.
+Before exposing a VideoOS web surface beyond controlled alpha access, add the project-scoped authenticated product surface and an explicit deployment boundary such as a reverse proxy or platform ingress with TLS, request limits, audit visibility, and environment-specific secret handling. The VID-16 shared access gate reduces accidental exposure risk but does not replace user identity, membership authorization, audit ownership, or tenant isolation.
