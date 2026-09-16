@@ -16,6 +16,7 @@ export interface MediaExecutor {
 
 export interface MediaExecutionPlan {
   sourceAssetId: string;
+  preset?: MediaTransformRequest["preset"];
   operations: MediaOperation[];
   output: MediaTransformRequest["output"];
   context?: MediaExecutionContext;
@@ -40,9 +41,13 @@ export function buildExecutionPlan(
   if (request.output.height !== undefined && request.output.height <= 0) {
     throw new Error("output.height must be positive");
   }
+  if (request.preset && (!request.preset.id.trim() || !Number.isInteger(request.preset.version) || request.preset.version <= 0)) {
+    throw new Error("preset id/version must be valid");
+  }
 
   return {
     sourceAssetId: request.sourceAssetId,
+    ...(request.preset ? { preset: { ...request.preset } } : {}),
     operations: [...request.operations],
     output: { ...request.output },
     ...(context ? { context: { ...context } } : {}),
