@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible VideoOS defect
+title: "bug: "
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened? Include the smallest reproducible case.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Commands, inputs, job IDs, or sequence of events needed to reproduce.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and scope
+      description: Which project/job/adapter/path is affected? Do not paste credentials or secrets.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, branch/commit, and relevant provider/adapter version.

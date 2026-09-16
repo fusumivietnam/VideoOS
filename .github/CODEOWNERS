@@ -1,0 +1,14 @@
+# Default owner while VideoOS is maintained as a small core team.
+* @fusumivietnam
+
+# High-impact boundaries are listed explicitly so ownership can be split later
+# without changing the rest of the repository policy.
+/.github/ @fusumivietnam
+/docs/ @fusumivietnam
+/packages/contracts/ @fusumivietnam
+/packages/event-fabric/ @fusumivietnam
+/packages/job-queue/ @fusumivietnam
+/services/orchestrator/ @fusumivietnam
+/services/publisher/ @fusumivietnam
+/services/media-worker/ @fusumivietnam
+/infra/ @fusumivietnam

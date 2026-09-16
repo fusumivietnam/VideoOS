@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a product or workflow capability
+title: "feat: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operational problem needs to be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable acceptance criteria, not a preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow impact
+      description: Which API, queue, worker, publisher, media, analytics, AI, or local-node path changes?
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Compatibility, quota, cost, security, provider, or deployment constraints.
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Success signal
+      description: What event/metric/user behavior would show this feature is useful?
