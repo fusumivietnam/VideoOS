@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { FakeNetworkPublisherAdapter } from '../../../services/publisher/src/index.js';
 import { createInMemoryRuntime } from '../src/index.js';
+import { composePublisherAdapters } from '../src/publisher-composition.js';
 import { loadRuntimeConfig } from '../src/runtime-config.js';
 
 test('runtime config defaults local/test publishing to fake and production to youtube', () => {
@@ -29,8 +30,23 @@ test('runtime config fails fast on invalid deployment values', () => {
   assert.throws(() => loadRuntimeConfig({ VIDEOOS_WEB_HOST: 'http:\/\/bad' }), /invalid host/);
 });
 
+test('publisher composition uses fake locally and fails closed for unconfigured youtube production', () => {
+  const localAdapters = composePublisherAdapters(loadRuntimeConfig({ NODE_ENV: 'test' }));
+  assert.equal(localAdapters.length, 1);
+  assert.ok(localAdapters[0] instanceof FakeNetworkPublisherAdapter);
+  assert.equal(localAdapters[0]?.network, 'youtube');
+
+  const production = loadRuntimeConfig({ NODE_ENV: 'production' });
+  assert.throws(() => composePublisherAdapters(production), /requires an explicit youtube adapter/);
+
+  const youtube = new FakeNetworkPublisherAdapter({ network: 'youtube' });
+  const explicit = composePublisherAdapters(production, { youtube });
+  assert.equal(explicit[0], youtube);
+});
+
 test('approved publish job completes end to end through the fake publisher without external credentials', async () => {
   const owner = { id: 'user:owner', kind: 'user' as const };
+  const config = loadRuntimeConfig({ NODE_ENV: 'test' });
   const runtime = createInMemoryRuntime({
     memberships: [{ projectId: 'project:demo', principalId: owner.id, role: 'owner' }],
     mediaExecutor: {
@@ -38,7 +54,7 @@ test('approved publish job completes end to end through the fake publisher witho
         return { assetId: 'unused', uri: 'memory://unused' };
       },
     },
-    publisherAdapters: [new FakeNetworkPublisherAdapter({ network: 'youtube' })],
+    publisherAdapters: composePublisherAdapters(config),
   });
 
   await runtime.assets.create({
