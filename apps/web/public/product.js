@@ -44,19 +44,7 @@ jobForm.addEventListener('submit', async (event) => {
   }
   const jobId = jobIdInput.value.trim();
   if (!jobId) return;
-  jobResult.textContent = 'Loading…';
-  const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/jobs/${encodeURIComponent(jobId)}`);
-  if (response.status === 401) return showLogin();
-  if (response.status === 403) {
-    jobResult.textContent = 'You do not have access to this project.';
-    return;
-  }
-  if (!response.ok) {
-    jobResult.textContent = `Unable to load job (${response.status}).`;
-    return;
-  }
-  const payload = await response.json();
-  jobResult.textContent = payload.job ? JSON.stringify(payload.job, null, 2) : 'Job not found in this project.';
+  await loadJob(jobId);
 });
 
 await loadProjects();
@@ -125,9 +113,10 @@ function renderAssets(assets) {
     assetsNode.innerHTML = '<p class="muted">No assets in this project.</p>';
     return;
   }
+  const canWrite = selectedProject && ['owner', 'admin', 'editor'].includes(selectedProject.role);
   const table = document.createElement('table');
   table.className = 'data-table';
-  table.innerHTML = '<thead><tr><th>ID</th><th>Kind</th><th>Type</th><th>Bytes</th><th>Created</th></tr></thead>';
+  table.innerHTML = `<thead><tr><th>ID</th><th>Kind</th><th>Type</th><th>Bytes</th><th>Created</th>${canWrite ? '<th>Action</th>' : ''}</tr></thead>`;
   const body = document.createElement('tbody');
   for (const asset of assets) {
     const row = document.createElement('tr');
@@ -136,10 +125,80 @@ function renderAssets(assets) {
       cell.textContent = value;
       row.append(cell);
     }
+    if (canWrite) {
+      const actionCell = document.createElement('td');
+      if (asset.contentType?.startsWith('video/')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'table-action';
+        button.textContent = 'Create 720p proxy';
+        button.addEventListener('click', () => create720pProxy(asset, button));
+        actionCell.append(button);
+      } else {
+        actionCell.textContent = '—';
+      }
+      row.append(actionCell);
+    }
     body.append(row);
   }
   table.append(body);
   assetsNode.replaceChildren(table);
+}
+
+async function create720pProxy(asset, button) {
+  if (!selectedProject) return;
+  const jobId = `media:web:${crypto.randomUUID()}`;
+  button.disabled = true;
+  button.textContent = 'Queueing…';
+  try {
+    const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/media-jobs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        assetId: asset.id,
+        jobId,
+        transform: {
+          operations: [{ type: 'resize', width: 1280, height: 720, fit: 'contain' }],
+          output: {
+            container: 'mp4',
+            videoCodec: 'h264',
+            audioCodec: 'aac',
+            width: 1280,
+            height: 720,
+            fps: 30,
+          },
+        },
+      }),
+    });
+    if (response.status === 401) return showLogin();
+    if (response.status === 403) throw new Error('Your role cannot create media jobs.');
+    if (!response.ok) throw new Error(`Unable to create media job (${response.status}).`);
+    const payload = await response.json();
+    jobIdInput.value = payload.jobId;
+    await loadJob(payload.jobId);
+    button.textContent = 'Queued';
+  } catch (error) {
+    jobResult.textContent = error instanceof Error ? error.message : String(error);
+    button.disabled = false;
+    button.textContent = 'Create 720p proxy';
+  }
+}
+
+async function loadJob(jobId) {
+  if (!selectedProject) return;
+  jobResult.textContent = 'Loading…';
+  const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/jobs/${encodeURIComponent(jobId)}`);
+  if (response.status === 401) return showLogin();
+  if (response.status === 403) {
+    jobResult.textContent = 'You do not have access to this project.';
+    return;
+  }
+  if (!response.ok) {
+    jobResult.textContent = `Unable to load job (${response.status}).`;
+    return;
+  }
+  const payload = await response.json();
+  jobResult.textContent = payload.job ? JSON.stringify(payload.job, null, 2) : 'Job not found in this project.';
 }
 
 function showLogin(message = '') {

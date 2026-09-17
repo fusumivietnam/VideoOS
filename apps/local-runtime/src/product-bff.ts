@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { MediaOperation, MediaTransformRequest } from '@videoos/contracts';
 import type { Principal } from '@videoos/identity';
 import type { VideoOsApi } from '../../../services/api/src/index.js';
 import {
@@ -17,8 +18,10 @@ const JSON_HEADERS = {
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
 };
-const MAX_BODY_BYTES = 4 * 1024;
+const MAX_BODY_BYTES = 16 * 1024;
 const MAX_PATH_ID_LENGTH = 256;
+const MAX_OPERATIONS = 8;
+const SAFE_TOKEN = /^[a-zA-Z0-9._-]{1,64}$/;
 
 export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig) {
   return createServer(async (request, response) => {
@@ -71,6 +74,16 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
         return;
       }
 
+      const mediaMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/media-jobs$/);
+      if (method === 'POST' && mediaMatch?.[1]) {
+        const projectId = decodeBoundedId(mediaMatch[1]);
+        const body = await readJsonBody(request);
+        const command = parseMediaJobCommand(projectId, principal, body);
+        const result = await api.createMediaJob(command);
+        sendJson(response, 202, result);
+        return;
+      }
+
       const jobMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/jobs\/([^/]+)$/);
       if (method === 'GET' && jobMatch?.[1] && jobMatch?.[2]) {
         const projectId = decodeBoundedId(jobMatch[1]);
@@ -86,13 +99,114 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
         sendJson(response, 403, { error: 'forbidden' });
         return;
       }
-      if (message === 'request body too large' || message === 'invalid json body' || message === 'invalid path identifier') {
+      if (
+        message === 'request body too large'
+        || message === 'invalid json body'
+        || message === 'invalid path identifier'
+        || message === 'invalid media job request'
+      ) {
         sendJson(response, 400, { error: 'bad_request' });
+        return;
+      }
+      if (message === 'asset not found in project') {
+        sendJson(response, 404, { error: 'asset_not_found' });
         return;
       }
       sendJson(response, 500, { error: 'product_bff_failed' });
     }
   });
+}
+
+function parseMediaJobCommand(projectId: string, principal: Principal, body: Record<string, unknown>) {
+  const assetId = boundedId(body.assetId);
+  const jobId = boundedId(body.jobId);
+  const transform = parseTransform(body.transform);
+  return { principal, projectId, assetId, jobId, transform };
+}
+
+function parseTransform(value: unknown): Omit<MediaTransformRequest, 'sourceAssetId'> {
+  if (!isRecord(value)) throw new Error('invalid media job request');
+  const operationsValue = value.operations;
+  if (!Array.isArray(operationsValue) || operationsValue.length > MAX_OPERATIONS) throw new Error('invalid media job request');
+  const operations = operationsValue.map(parseOperation);
+  if (!isRecord(value.output)) throw new Error('invalid media job request');
+
+  const container = safeToken(value.output.container);
+  const output: MediaTransformRequest['output'] = { container };
+  if (value.output.videoCodec !== undefined) output.videoCodec = safeToken(value.output.videoCodec);
+  if (value.output.audioCodec !== undefined) output.audioCodec = safeToken(value.output.audioCodec);
+  if (value.output.width !== undefined) output.width = boundedDimension(value.output.width);
+  if (value.output.height !== undefined) output.height = boundedDimension(value.output.height);
+  if (value.output.fps !== undefined) output.fps = boundedNumber(value.output.fps, 1, 240);
+
+  const transform: Omit<MediaTransformRequest, 'sourceAssetId'> = { operations, output };
+  if (value.preset !== undefined) {
+    if (!isRecord(value.preset)) throw new Error('invalid media job request');
+    transform.preset = {
+      id: safeToken(value.preset.id),
+      version: boundedInteger(value.preset.version, 1, 1_000_000),
+    };
+  }
+  if (value.frame !== undefined) {
+    if (!isRecord(value.frame)) throw new Error('invalid media job request');
+    transform.frame = {};
+    if (value.frame.atMs !== undefined) transform.frame.atMs = boundedInteger(value.frame.atMs, 0, 24 * 60 * 60 * 1000);
+    if (value.frame.width !== undefined) transform.frame.width = boundedDimension(value.frame.width);
+    if (value.frame.height !== undefined) transform.frame.height = boundedDimension(value.frame.height);
+  }
+  return transform;
+}
+
+function parseOperation(value: unknown): MediaOperation {
+  if (!isRecord(value) || typeof value.type !== 'string') throw new Error('invalid media job request');
+  if (value.type === 'trim') {
+    const startMs = boundedInteger(value.startMs, 0, 24 * 60 * 60 * 1000);
+    const endMs = boundedInteger(value.endMs, 1, 24 * 60 * 60 * 1000);
+    if (endMs <= startMs) throw new Error('invalid media job request');
+    return { type: 'trim', startMs, endMs };
+  }
+  if (value.type === 'resize') {
+    const fit = value.fit;
+    if (fit !== 'cover' && fit !== 'contain') throw new Error('invalid media job request');
+    return { type: 'resize', width: boundedDimension(value.width), height: boundedDimension(value.height), fit };
+  }
+  if (value.type === 'normalize-audio') {
+    return { type: 'normalize-audio', targetLufs: boundedNumber(value.targetLufs, -70, 0) };
+  }
+  if (value.type === 'burn-subtitles') {
+    return { type: 'burn-subtitles', subtitleAssetId: boundedId(value.subtitleAssetId) };
+  }
+  throw new Error('invalid media job request');
+}
+
+function safeToken(value: unknown): string {
+  if (typeof value !== 'string' || !SAFE_TOKEN.test(value)) throw new Error('invalid media job request');
+  return value;
+}
+
+function boundedId(value: unknown): string {
+  if (typeof value !== 'string' || value.length < 1 || value.length > MAX_PATH_ID_LENGTH || value.includes('/') || value.includes('\\')) {
+    throw new Error('invalid media job request');
+  }
+  return value;
+}
+
+function boundedDimension(value: unknown): number {
+  return boundedInteger(value, 1, 8192);
+}
+
+function boundedInteger(value: unknown, min: number, max: number): number {
+  if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) throw new Error('invalid media job request');
+  return value as number;
+}
+
+function boundedNumber(value: unknown, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error('invalid media job request');
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function authenticatedPrincipal(request: IncomingMessage, auth: ProductAuthConfig): Principal | null {
