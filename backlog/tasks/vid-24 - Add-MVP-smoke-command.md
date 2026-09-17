@@ -1,7 +1,7 @@
 ---
 id: VID-24
 title: Add MVP smoke command
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-17 12:46'
 labels: [m4, mvp, smoke, publishing, launch]
@@ -25,5 +25,5 @@ This is a dry-run confidence tool, not a substitute for VID-12 real YouTube veri
 - [x] #4 Smoke creates an approved publish job and verifies canonical queue state before execution.
 - [x] #5 Smoke executes `runPublishOnce()` and verifies the lifecycle completion event and terminal `completed` job state.
 - [x] #6 Smoke prints a compact JSON summary suitable for local/manual validation.
-- [ ] #7 Exact-head CI passes architecture, typecheck and workspace tests.
+- [x] #7 Exact-head CI #192 passes architecture, typecheck and workspace tests.
 - [x] #8 No production credential, provider expansion, database migration, dependency, lockfile or GitHub Actions workflow change is introduced.
