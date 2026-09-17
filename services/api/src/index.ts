@@ -1,6 +1,6 @@
 import type { MediaTransformRequest, PublishRequest } from '@videoos/contracts';
 import type { JobQueue, QueueJobStatus } from '@videoos/job-queue';
-import type { MembershipRepository, Principal } from '@videoos/identity';
+import type { MembershipRepository, Principal, ProjectRole } from '@videoos/identity';
 import { authorizeProjectCapability } from '@videoos/identity';
 import type { AssetRepository } from '@videoos/storage';
 
@@ -8,6 +8,11 @@ export interface ApiDependencies {
   memberships: MembershipRepository;
   assets: AssetRepository;
   jobs: JobQueue;
+}
+
+export interface ProjectMembershipView {
+  projectId: string;
+  role: ProjectRole;
 }
 
 export interface PublishApprovalRecord {
@@ -50,6 +55,11 @@ export interface JobStatusView {
 
 export class VideoOsApi {
   constructor(private readonly dependencies: ApiDependencies) {}
+
+  async listProjects(principal: Principal): Promise<ProjectMembershipView[]> {
+    const memberships = await this.dependencies.memberships.listByPrincipal(principal.id);
+    return memberships.map((membership) => ({ projectId: membership.projectId, role: membership.role }));
+  }
 
   async listAssets(principal: Principal, projectId: string) {
     await authorizeProjectCapability(this.dependencies.memberships, principal, projectId, 'asset.read');
