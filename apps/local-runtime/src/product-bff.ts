@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import type { MediaOperation, MediaTransformRequest } from '@videoos/contracts';
+import type { MediaOperation, MediaTransformRequest, PublishRequest } from '@videoos/contracts';
 import type { Principal } from '@videoos/identity';
 import type { VideoOsApi } from '../../../services/api/src/index.js';
 import {
@@ -21,6 +21,7 @@ const JSON_HEADERS = {
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_PATH_ID_LENGTH = 256;
 const MAX_OPERATIONS = 8;
+const MAX_CAPTION_LENGTH = 5000;
 const SAFE_TOKEN = /^[a-zA-Z0-9._-]{1,64}$/;
 
 export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig) {
@@ -84,6 +85,16 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
         return;
       }
 
+      const publishPreflightMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/publish-preflight$/);
+      if (method === 'POST' && publishPreflightMatch?.[1]) {
+        const projectId = decodeBoundedId(publishPreflightMatch[1]);
+        const body = await readJsonBody(request);
+        const publishRequest = parsePublishPreflightRequest(projectId, body);
+        const result = await api.preflightPublish(principal, publishRequest);
+        sendJson(response, 200, { ...result, provider: 'youtube', enqueueAllowed: false });
+        return;
+      }
+
       const jobMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/jobs\/([^/]+)$/);
       if (method === 'GET' && jobMatch?.[1] && jobMatch?.[2]) {
         const projectId = decodeBoundedId(jobMatch[1]);
@@ -104,17 +115,44 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
         || message === 'invalid json body'
         || message === 'invalid path identifier'
         || message === 'invalid media job request'
+        || message === 'invalid publish preflight request'
+        || message === 'publish scheduledAt is invalid'
       ) {
         sendJson(response, 400, { error: 'bad_request' });
         return;
       }
-      if (message === 'asset not found in project') {
+      if (message === 'asset not found in project' || message === 'publish asset not found in project') {
         sendJson(response, 404, { error: 'asset_not_found' });
         return;
       }
       sendJson(response, 500, { error: 'product_bff_failed' });
     }
   });
+}
+
+function parsePublishPreflightRequest(projectId: string, body: Record<string, unknown>): PublishRequest {
+  const assetId = boundedId(body.assetId);
+  const accountId = boundedId(body.accountId);
+  const idempotencyKey = boundedId(body.idempotencyKey);
+  const mimeType = typeof body.mimeType === 'string' && /^video\/[a-zA-Z0-9.+-]{1,64}$/.test(body.mimeType)
+    ? body.mimeType
+    : (() => { throw new Error('invalid publish preflight request'); })();
+  if (body.caption !== undefined && (typeof body.caption !== 'string' || body.caption.length > MAX_CAPTION_LENGTH)) {
+    throw new Error('invalid publish preflight request');
+  }
+  if (body.scheduledAt !== undefined && (typeof body.scheduledAt !== 'string' || body.scheduledAt.length > 64)) {
+    throw new Error('invalid publish preflight request');
+  }
+
+  const request: PublishRequest = {
+    idempotencyKey,
+    projectId,
+    targets: [{ network: 'youtube', accountId }],
+    assets: [{ assetId, uri: `asset://${encodeURIComponent(assetId)}`, mimeType }],
+  };
+  if (typeof body.caption === 'string' && body.caption.length > 0) request.caption = body.caption;
+  if (typeof body.scheduledAt === 'string' && body.scheduledAt.length > 0) request.scheduledAt = body.scheduledAt;
+  return request;
 }
 
 function parseMediaJobCommand(projectId: string, principal: Principal, body: Record<string, unknown>) {
