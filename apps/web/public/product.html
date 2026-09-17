@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">VideoOS · product alpha</p>
         <h1>Your projects</h1>
-        <p class="lede">Authenticated project-scoped media processing plus YouTube publish preflight. Real publishing remains locked until provider verification is complete.</p>
+        <p class="lede">Authenticated project-scoped media processing plus YouTube publish preflight. Local/test can exercise a fake publish dry-run; real publishing remains locked until provider verification is complete.</p>
       </div>
       <button id="logout" class="secondary-button" type="button" hidden>Sign out</button>
     </header>
@@ -58,7 +58,7 @@
         <article class="card">
           <p class="eyebrow">YouTube</p>
           <h2>Publish preflight</h2>
-          <p class="muted">Validate project access, asset scope, target and schedule without enqueueing a publish job.</p>
+          <p class="muted">Validate project access, asset scope, target and schedule without enqueueing a real provider publish.</p>
           <form id="publish-preflight-form" class="auth-form compact-form">
             <label for="publish-asset">Video asset</label>
             <select id="publish-asset" required disabled><option value="">Select a project first</option></select>
@@ -69,12 +69,13 @@
             <label for="publish-schedule">Schedule (optional)</label>
             <input id="publish-schedule" type="datetime-local">
             <button id="publish-preflight-button" type="submit">Run preflight</button>
+            <button id="publish-dry-run-button" class="secondary-button" type="button" hidden disabled>Run fake publish dry-run</button>
           </form>
         </article>
         <article class="card">
           <p class="eyebrow">Publish gate</p>
           <h2>Readiness</h2>
-          <p class="muted">A successful preflight does not publish. Approval and provider verification are still required.</p>
+          <p id="publish-runtime-mode" class="muted">Checking runtime publish mode…</p>
           <pre id="publish-preflight-result" class="job-result">No preflight run yet.</pre>
         </article>
       </section>
