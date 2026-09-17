@@ -6,8 +6,8 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "controlled alpha packaging and a shared signed-session access gate are complete; use localhost by default or protected mode behind a trusted TLS/private boundary",
-    "next implementation priority is project-scoped user identity/membership product access and real product actions, not additional infrastructure breadth",
+    "VID-17 adds the project-scoped product read model required before wiring authenticated user-facing BFF endpoints",
+    "controlled alpha packaging and shared signed-session access are complete; do not mistake the shared alpha gate for project-scoped product identity",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
@@ -35,9 +35,9 @@
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
-    "full non-operator product launch still requires project-scoped user identity/membership authentication and product action surfaces; VID-16 is only a shared alpha access gate"
+    "full non-operator product launch still requires project-scoped authenticated BFF/product actions after VID-17; VID-16 is only a shared alpha access gate"
   ],
-  "nextTasks": ["VID-12", "VID-5"],
+  "nextTasks": ["VID-12", "VID-17", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
