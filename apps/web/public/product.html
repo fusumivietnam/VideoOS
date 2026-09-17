@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VideoOS Product</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell product-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">VideoOS · product alpha</p>
+        <h1>Your projects</h1>
+        <p class="lede">Authenticated project-scoped access to assets and job status. Read-only in this launch slice.</p>
+      </div>
+      <button id="logout" class="secondary-button" type="button" hidden>Sign out</button>
+    </header>
+
+    <section id="login-card" class="card auth-card product-auth-card">
+      <p class="eyebrow">Product access</p>
+      <h2>Sign in</h2>
+      <form id="product-login" class="auth-form">
+        <label for="product-access-code">Access code</label>
+        <input id="product-access-code" name="accessCode" type="password" autocomplete="current-password" required>
+        <button type="submit">Continue</button>
+        <p id="login-error" class="error" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="workspace" hidden>
+      <section class="grid two product-grid">
+        <article class="card">
+          <p class="eyebrow">Projects</p>
+          <h2>Memberships</h2>
+          <div id="projects" class="stack-list"></div>
+        </article>
+        <article class="card">
+          <p class="eyebrow">Selected project</p>
+          <h2 id="selected-project">Choose a project</h2>
+          <p id="selected-role" class="muted">—</p>
+        </article>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Assets</p>
+            <h2>Project media</h2>
+          </div>
+        </div>
+        <div id="assets" class="table-wrap"><p class="muted">Select a project.</p></div>
+      </section>
+
+      <section class="card product-job-card">
+        <p class="eyebrow">Job lookup</p>
+        <h2>Check processing status</h2>
+        <form id="job-form" class="inline-form">
+          <input id="job-id" name="jobId" placeholder="job id" maxlength="256" required>
+          <button type="submit">Check job</button>
+        </form>
+        <pre id="job-result" class="job-result">No job selected.</pre>
+      </section>
+    </section>
+
+    <footer>
+      <span>Project authorization is enforced server-side.</span>
+      <a href="/">Launch cockpit</a>
+    </footer>
+  </main>
+  <script type="module" src="/product.js"></script>
+</body>
+</html>

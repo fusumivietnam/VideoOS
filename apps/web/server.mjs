@@ -19,8 +19,10 @@ const STATIC_FILES = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8', true]],
   ['/index.html', ['index.html', 'text/html; charset=utf-8', true]],
   ['/login.html', ['login.html', 'text/html; charset=utf-8', false]],
+  ['/product.html', ['product.html', 'text/html; charset=utf-8', false]],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8', false]],
   ['/login.js', ['login.js', 'text/javascript; charset=utf-8', false]],
+  ['/product.js', ['product.js', 'text/javascript; charset=utf-8', false]],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8', false]],
 ]);
 
@@ -30,6 +32,8 @@ const COMMON_HEADERS = {
   'x-frame-options': 'DENY',
   'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
 };
+const PRODUCT_PROXY_PREFIX = '/api/product/';
+const MAX_PROXY_BODY_BYTES = 8 * 1024;
 
 export function createControlPlaneServer(options = {}) {
   const repoRoot = options.repoRoot ?? resolve(here, '..', '..');
@@ -38,6 +42,9 @@ export function createControlPlaneServer(options = {}) {
     ? createAlphaAuthConfig(options.env ?? process.env)
     : options.authConfig;
   const now = options.now ?? Date.now;
+  const productBffOrigin = normalizeProductBffOrigin(
+    options.productBffOrigin === undefined ? options.env?.VIDEOOS_PRODUCT_BFF_ORIGIN ?? process.env.VIDEOOS_PRODUCT_BFF_ORIGIN : options.productBffOrigin,
+  );
 
   return createServer(async (request, response) => {
     const method = request.method ?? 'GET';
@@ -47,6 +54,15 @@ export function createControlPlaneServer(options = {}) {
     try {
       if (method === 'GET' && url.pathname === '/health') {
         sendJson(response, 200, { status: 'ok', service: 'videoos-web' });
+        return;
+      }
+
+      if (url.pathname.startsWith(PRODUCT_PROXY_PREFIX)) {
+        if (!productBffOrigin) {
+          sendJson(response, 503, { error: 'product_bff_unavailable' });
+          return;
+        }
+        await proxyProductRequest(request, response, url, productBffOrigin);
         return;
       }
 
@@ -126,6 +142,59 @@ export function createControlPlaneServer(options = {}) {
       });
     }
   });
+}
+
+async function proxyProductRequest(request, response, url, productBffOrigin) {
+  const target = new URL(`${url.pathname}${url.search}`, productBffOrigin);
+  const headers = new Headers();
+  if (request.headers.cookie) headers.set('cookie', request.headers.cookie);
+  const contentType = request.headers['content-type'];
+  if (typeof contentType === 'string') headers.set('content-type', contentType);
+
+  const body = request.method === 'GET' || request.method === 'HEAD'
+    ? undefined
+    : await readBoundedBody(request, MAX_PROXY_BODY_BYTES);
+
+  const upstream = await fetch(target, {
+    method: request.method ?? 'GET',
+    headers,
+    body,
+    redirect: 'manual',
+  });
+
+  const responseHeaders = {
+    ...COMMON_HEADERS,
+    'cache-control': 'no-store',
+  };
+  const upstreamContentType = upstream.headers.get('content-type');
+  if (upstreamContentType) responseHeaders['content-type'] = upstreamContentType;
+  const setCookie = upstream.headers.get('set-cookie');
+  if (setCookie) responseHeaders['set-cookie'] = setCookie;
+
+  response.writeHead(upstream.status, responseHeaders);
+  response.end(Buffer.from(await upstream.arrayBuffer()));
+}
+
+function normalizeProductBffOrigin(value) {
+  if (!value) return null;
+  const origin = new URL(value);
+  if (origin.protocol !== 'http:' && origin.protocol !== 'https:') throw new Error('VIDEOOS_PRODUCT_BFF_ORIGIN must use http or https');
+  if (origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+    throw new Error('VIDEOOS_PRODUCT_BFF_ORIGIN must be a bare origin');
+  }
+  return origin.origin;
+}
+
+async function readBoundedBody(request, maxBytes) {
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > maxBytes) throw new RequestBodyError(413, 'request_too_large');
+    chunks.push(buffer);
+  }
+  return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
 export async function deriveLaunchState(repoRoot) {
@@ -245,7 +314,7 @@ if (executedDirectly) {
   const port = parsePort(process.env.VIDEOOS_WEB_PORT);
   const authConfig = createAlphaAuthConfig(process.env);
   assertSafeBind(host, authConfig, process.env.VIDEOOS_WEB_ALLOW_UNAUTHENTICATED_NON_LOOPBACK === '1');
-  const server = createControlPlaneServer({ authConfig });
+  const server = createControlPlaneServer({ authConfig, env: process.env });
   server.listen(port, host, () => {
     process.stdout.write(`VideoOS control plane listening on http://${host}:${port}${authConfig ? ' (protected)' : ' (localhost alpha)'}\n`);
   });
