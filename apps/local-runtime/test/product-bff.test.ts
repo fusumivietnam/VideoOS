@@ -5,7 +5,7 @@ import { InMemoryMembershipRepository } from '@videoos/identity';
 import { InMemoryJobQueue } from '@videoos/job-queue';
 import { InMemoryAssetRepository } from '@videoos/storage';
 import { VideoOsApi } from '../../../services/api/src/index.js';
-import { createProductBffServer } from '../src/product-bff.js';
+import { createProductBffServer, type ProductBffRuntimeOptions } from '../src/product-bff.js';
 import {
   createProductAuthConfig,
   issueProductSession,
@@ -23,7 +23,7 @@ const auth: ProductAuthConfig = {
   secureCookie: false,
 };
 
-async function fixture() {
+async function fixture(runtime?: ProductBffRuntimeOptions) {
   const memberships = new InMemoryMembershipRepository([
     { projectId: 'project:a', principalId: 'user:a', role: 'owner' },
     { projectId: 'project:b', principalId: 'user:b', role: 'viewer' },
@@ -41,7 +41,7 @@ async function fixture() {
   await jobs.enqueue('media', 'job:a', { projectId: 'project:a', assetId: 'asset:a' });
   await jobs.enqueue('media', 'job:b', { projectId: 'project:b', assetId: 'asset:b' });
   const api = new VideoOsApi({ memberships, assets, jobs });
-  const server = createProductBffServer(api, auth);
+  const server = createProductBffServer(api, auth, runtime);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -79,6 +79,16 @@ function mediaJobBody(assetId: string, jobId: string) {
       operations: [{ type: 'resize', width: 1280, height: 720, fit: 'contain' }],
       output: { container: 'mp4', videoCodec: 'h264', audioCodec: 'aac', width: 1280, height: 720, fps: 30 },
     },
+  };
+}
+
+function publishBody(assetId = 'asset:a') {
+  return {
+    assetId,
+    accountId: 'account:a',
+    idempotencyKey: `publish-${assetId}`,
+    mimeType: 'video/mp4',
+    caption: 'VideoOS dry-run',
   };
 }
 
@@ -120,6 +130,20 @@ test('login issues HttpOnly session and project discovery is principal scoped', 
     principalId: 'user:a',
     projects: [{ projectId: 'project:a', role: 'owner' }],
   });
+});
+
+test('runtime endpoint defaults real publishing to locked and exposes fake dry-run only explicitly', async (t) => {
+  const production = await fixture();
+  t.after(() => production.server.close());
+  const productionCookie = await login(production.base, 'alpha-user-a-secret');
+  const productionRuntime = await fetch(`${production.base}/api/product/runtime`, { headers: { cookie: productionCookie } });
+  assert.deepEqual(await productionRuntime.json(), { publisherDriver: 'youtube', dryRunPublishEnabled: false });
+
+  const fake = await fixture({ publisherDriver: 'fake', runPublishOnce: async () => ({ kind: 'completed' }) });
+  t.after(() => fake.server.close());
+  const fakeCookie = await login(fake.base, 'alpha-user-a-secret');
+  const fakeRuntime = await fetch(`${fake.base}/api/product/runtime`, { headers: { cookie: fakeCookie } });
+  assert.deepEqual(await fakeRuntime.json(), { publisherDriver: 'fake', dryRunPublishEnabled: true });
 });
 
 test('assets and jobs preserve project authorization and cross-project isolation', async (t) => {
@@ -202,6 +226,48 @@ test('media mutation rejects malformed or unbounded transforms', async (t) => {
     headers: { cookie, 'content-type': 'application/json' },
     body: JSON.stringify(unsafeCodec),
   })).status, 400);
+});
+
+test('fake publish dry-run requires fake runtime, explicit confirmation and owner approval capability', async (t) => {
+  const locked = await fixture();
+  t.after(() => locked.server.close());
+  const lockedCookie = await login(locked.base, 'alpha-user-a-secret');
+  assert.equal((await fetch(`${locked.base}/api/product/projects/project%3Aa/publish-dry-run`, {
+    method: 'POST',
+    headers: { cookie: lockedCookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...publishBody(), confirmed: true }),
+  })).status, 423);
+
+  const fake = await fixture({
+    publisherDriver: 'fake',
+    runPublishOnce: async () => ({ kind: 'completed', queue: 'publish', attempt: 1 }),
+  });
+  t.after(() => fake.server.close());
+  const ownerCookie = await login(fake.base, 'alpha-user-a-secret');
+  assert.equal((await fetch(`${fake.base}/api/product/projects/project%3Aa/publish-dry-run`, {
+    method: 'POST',
+    headers: { cookie: ownerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify(publishBody()),
+  })).status, 400);
+
+  const response = await fetch(`${fake.base}/api/product/projects/project%3Aa/publish-dry-run`, {
+    method: 'POST',
+    headers: { cookie: ownerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...publishBody(), confirmed: true }),
+  });
+  assert.equal(response.status, 202);
+  const result = await response.json() as { mode: string; jobId: string; providerSideEffect: boolean };
+  assert.equal(result.mode, 'fake');
+  assert.equal(result.providerSideEffect, false);
+  const queued = await fake.jobs.get(result.jobId);
+  assert.equal(queued?.queue, 'publish');
+
+  const viewerCookie = await login(fake.base, 'alpha-user-b-secret');
+  assert.equal((await fetch(`${fake.base}/api/product/projects/project%3Ab/publish-dry-run`, {
+    method: 'POST',
+    headers: { cookie: viewerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...publishBody('asset:b'), confirmed: true }),
+  })).status, 403);
 });
 
 test('tampered and expired product sessions are rejected', async (t) => {
