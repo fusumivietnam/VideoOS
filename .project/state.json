@@ -7,8 +7,8 @@
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
     "VID-24 repository-owned MVP smoke command is complete and CI-verified; the full fake publish path can be exercised without external credentials",
-    "VID-25 one-command MVP product UI dry-run is in progress so a fresh checkout can launch seeded fake-mode web + authenticated BFF and exercise the user flow in a browser",
-    "finish browser-level MVP dry-run before production credential rollout; real publish launch remains gated by VID-12 and fake publishing must never become a production fallback"
+    "VID-25 one-command MVP product UI dry-run is complete and CI-verified; a fresh checkout can launch seeded fake-mode web + authenticated BFF and exercise project, media and publish dry-run flows in a browser",
+    "use the browser MVP dry-run for product-level validation while production credentials are configured; real publish launch remains gated by VID-12 and fake publishing must never become a production fallback"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
   "completedCapabilities": [
@@ -39,13 +39,14 @@
     "bounded automatic media-job tracking with terminal-state handling and authorized asset refresh in the product UI",
     "bounded YouTube publish preflight reusing canonical publish validation and explicitly preventing enqueue before provider verification",
     "typed fail-fast runtime config boundary with deterministic local/test fake publisher and production YouTube fail-closed composition",
-    "repository-owned pnpm mvp:smoke command validating project asset -> preflight -> approval -> publish queue -> fake worker -> terminal completed state"
+    "repository-owned pnpm mvp:smoke command validating project asset -> preflight -> approval -> publish queue -> fake worker -> terminal completed state",
+    "one-command pnpm mvp:ui local product launcher with seeded demo project, authenticated BFF, fake-only publish dry-run and same-origin web UI"
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
     "controlled real end-user publish enqueue remains locked until the first live YouTube path is verified or explicitly waived"
   ],
-  "nextTasks": ["VID-25", "VID-12", "VID-5"],
+  "nextTasks": ["VID-12", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
