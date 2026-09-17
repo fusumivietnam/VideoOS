@@ -24,7 +24,18 @@ const MAX_OPERATIONS = 8;
 const MAX_CAPTION_LENGTH = 5000;
 const SAFE_TOKEN = /^[a-zA-Z0-9._-]{1,64}$/;
 
-export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig) {
+export type ProductBffRuntimeOptions = {
+  publisherDriver: 'fake' | 'youtube';
+  runPublishOnce?: () => Promise<unknown>;
+};
+
+const DEFAULT_RUNTIME_OPTIONS: ProductBffRuntimeOptions = { publisherDriver: 'youtube' };
+
+export function createProductBffServer(
+  api: VideoOsApi,
+  auth: ProductAuthConfig,
+  runtime: ProductBffRuntimeOptions = DEFAULT_RUNTIME_OPTIONS,
+) {
   return createServer(async (request, response) => {
     const method = request.method ?? 'GET';
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -63,6 +74,14 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
         return;
       }
 
+      if (method === 'GET' && url.pathname === '/api/product/runtime') {
+        sendJson(response, 200, {
+          publisherDriver: runtime.publisherDriver,
+          dryRunPublishEnabled: runtime.publisherDriver === 'fake' && typeof runtime.runPublishOnce === 'function',
+        });
+        return;
+      }
+
       if (method === 'GET' && url.pathname === '/api/product/me/projects') {
         sendJson(response, 200, { principalId: principal.id, projects: await api.listProjects(principal) });
         return;
@@ -92,6 +111,34 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
         const publishRequest = parsePublishPreflightRequest(projectId, body);
         const result = await api.preflightPublish(principal, publishRequest);
         sendJson(response, 200, { ...result, provider: 'youtube', enqueueAllowed: false });
+        return;
+      }
+
+      const publishDryRunMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/publish-dry-run$/);
+      if (method === 'POST' && publishDryRunMatch?.[1]) {
+        if (runtime.publisherDriver !== 'fake' || typeof runtime.runPublishOnce !== 'function') {
+          sendJson(response, 423, { error: 'publish_dry_run_locked' });
+          return;
+        }
+        const projectId = decodeBoundedId(publishDryRunMatch[1]);
+        const body = await readJsonBody(request);
+        if (body.confirmed !== true) {
+          sendJson(response, 400, { error: 'dry_run_confirmation_required' });
+          return;
+        }
+        const publishRequest = parsePublishPreflightRequest(projectId, body);
+        const queued = await api.createPublish({
+          principal,
+          approval: { approvedBy: principal, approvedAt: new Date().toISOString() },
+          request: publishRequest,
+        });
+        const lifecycle = await runtime.runPublishOnce();
+        sendJson(response, 202, {
+          mode: 'fake',
+          jobId: queued.jobId,
+          lifecycle,
+          providerSideEffect: false,
+        });
         return;
       }
 
