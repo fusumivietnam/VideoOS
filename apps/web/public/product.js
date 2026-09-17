@@ -7,12 +7,18 @@ const logoutButton = document.querySelector('#logout');
 const projectsNode = document.querySelector('#projects');
 const selectedProjectNode = document.querySelector('#selected-project');
 const selectedRoleNode = document.querySelector('#selected-role');
+const workflowStatusNode = document.querySelector('#workflow-status');
 const assetsNode = document.querySelector('#assets');
 const jobForm = document.querySelector('#job-form');
 const jobIdInput = document.querySelector('#job-id');
+const jobPollingNode = document.querySelector('#job-polling');
+const refreshAssetsButton = document.querySelector('#refresh-assets');
 const jobResult = document.querySelector('#job-result');
 
+const JOB_POLL_INTERVAL_MS = 1500;
+const JOB_POLL_MAX_ATTEMPTS = 40;
 let selectedProject = null;
+let activePollToken = 0;
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -32,6 +38,7 @@ loginForm.addEventListener('submit', async (event) => {
 });
 
 logoutButton.addEventListener('click', async () => {
+  stopPolling();
   await api('/api/product/session', { method: 'DELETE' }).catch(() => undefined);
   showLogin();
 });
@@ -44,7 +51,13 @@ jobForm.addEventListener('submit', async (event) => {
   }
   const jobId = jobIdInput.value.trim();
   if (!jobId) return;
+  stopPolling();
   await loadJob(jobId);
+});
+
+refreshAssetsButton.addEventListener('click', async () => {
+  if (!selectedProject) return;
+  await loadAssets(selectedProject.projectId);
 });
 
 await loadProjects();
@@ -86,14 +99,23 @@ async function loadProjects() {
 }
 
 async function selectProject(project, button) {
+  stopPolling();
   selectedProject = project;
   for (const row of projectsNode.querySelectorAll('.project-row')) row.classList.toggle('active', row === button);
   selectedProjectNode.textContent = project.projectId;
   selectedRoleNode.textContent = `Role: ${project.role}`;
-  assetsNode.innerHTML = '<p class="muted">Loading assets…</p>';
+  workflowStatusNode.textContent = ['owner', 'admin', 'editor'].includes(project.role)
+    ? 'Media processing enabled. Publishing remains gated.'
+    : 'Read access only for this role.';
   jobResult.textContent = 'No job selected.';
+  jobPollingNode.textContent = 'Manual lookup until a job is queued.';
+  refreshAssetsButton.disabled = false;
+  await loadAssets(project.projectId);
+}
 
-  const response = await api(`/api/product/projects/${encodeURIComponent(project.projectId)}/assets`);
+async function loadAssets(projectId) {
+  assetsNode.innerHTML = '<p class="muted">Loading assets…</p>';
+  const response = await api(`/api/product/projects/${encodeURIComponent(projectId)}/assets`);
   if (response.status === 401) return showLogin();
   if (response.status === 403) {
     assetsNode.innerHTML = '<p class="error">Access denied.</p>';
@@ -103,7 +125,6 @@ async function selectProject(project, button) {
     assetsNode.innerHTML = `<p class="error">Unable to load assets (${response.status}).</p>`;
     return;
   }
-
   const payload = await response.json();
   renderAssets(payload.assets);
 }
@@ -175,33 +196,63 @@ async function create720pProxy(asset, button) {
     if (!response.ok) throw new Error(`Unable to create media job (${response.status}).`);
     const payload = await response.json();
     jobIdInput.value = payload.jobId;
-    await loadJob(payload.jobId);
     button.textContent = 'Queued';
+    workflowStatusNode.textContent = `Processing ${asset.id}`;
+    await pollJob(payload.jobId);
   } catch (error) {
     jobResult.textContent = error instanceof Error ? error.message : String(error);
+    workflowStatusNode.textContent = 'Unable to queue media processing.';
     button.disabled = false;
     button.textContent = 'Create 720p proxy';
   }
 }
 
+async function pollJob(jobId) {
+  const token = ++activePollToken;
+  for (let attempt = 1; attempt <= JOB_POLL_MAX_ATTEMPTS && token === activePollToken; attempt += 1) {
+    const job = await loadJob(jobId);
+    if (!job || token !== activePollToken) return;
+    if (['succeeded', 'failed', 'cancelled'].includes(job.status)) {
+      jobPollingNode.textContent = `Finished with status: ${job.status}`;
+      workflowStatusNode.textContent = job.status === 'succeeded'
+        ? 'Media processing completed. Assets refreshed.'
+        : `Media processing ${job.status}.`;
+      if (job.status === 'succeeded' && selectedProject) await loadAssets(selectedProject.projectId);
+      return;
+    }
+    jobPollingNode.textContent = `Tracking job · ${job.status} · check ${attempt}/${JOB_POLL_MAX_ATTEMPTS}`;
+    await delay(JOB_POLL_INTERVAL_MS);
+  }
+  if (token === activePollToken) jobPollingNode.textContent = 'Automatic tracking stopped. Use Check job to refresh manually.';
+}
+
 async function loadJob(jobId) {
-  if (!selectedProject) return;
+  if (!selectedProject) return null;
   jobResult.textContent = 'Loading…';
   const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/jobs/${encodeURIComponent(jobId)}`);
-  if (response.status === 401) return showLogin();
+  if (response.status === 401) {
+    showLogin();
+    return null;
+  }
   if (response.status === 403) {
     jobResult.textContent = 'You do not have access to this project.';
-    return;
+    return null;
   }
   if (!response.ok) {
     jobResult.textContent = `Unable to load job (${response.status}).`;
-    return;
+    return null;
   }
   const payload = await response.json();
   jobResult.textContent = payload.job ? JSON.stringify(payload.job, null, 2) : 'Job not found in this project.';
+  return payload.job ?? null;
+}
+
+function stopPolling() {
+  activePollToken += 1;
 }
 
 function showLogin(message = '') {
+  stopPolling();
   selectedProject = null;
   loginCard.hidden = false;
   workspace.hidden = true;
@@ -211,6 +262,10 @@ function showLogin(message = '') {
 
 async function api(path, options = {}) {
   return fetch(path, { ...options, cache: 'no-store', credentials: 'same-origin' });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function formatBytes(value) {
