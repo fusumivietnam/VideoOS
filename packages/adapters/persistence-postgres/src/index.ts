@@ -85,6 +85,21 @@ export class PostgresMembershipRepository implements MembershipRepository {
     const row = result.rows[0];
     return row ? { projectId: row.project_id, principalId: row.principal_id, role: row.role } : null;
   }
+
+  async listByPrincipal(principalId: string): Promise<ProjectMembership[]> {
+    const result = await this.db.query<{ project_id: string; principal_id: string; role: ProjectMembership['role'] }>(
+      `SELECT project_id, principal_id, role
+       FROM project_memberships
+       WHERE principal_id = $1
+       ORDER BY project_id`,
+      [principalId],
+    );
+    return result.rows.map((row) => ({
+      projectId: row.project_id,
+      principalId: row.principal_id,
+      role: row.role,
+    }));
+  }
 }
 
 export class PostgresAssetRepository implements AssetRepository {

@@ -6,7 +6,7 @@
   "exports": "./src/index.ts",
   "scripts": {
     "migrate": "node scripts/migrate.mjs",
-    "test:integration": "tsx scripts/integration.ts",
+    "test:integration": "tsx scripts/integration.ts && tsx scripts/membership-integration.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
