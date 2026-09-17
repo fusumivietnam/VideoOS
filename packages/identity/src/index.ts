@@ -31,6 +31,7 @@ const ROLE_CAPABILITIES: Record<ProjectRole, ReadonlySet<ProjectCapability>> = {
 
 export interface MembershipRepository {
   get(projectId: string, principalId: string): Promise<ProjectMembership | null>;
+  listByPrincipal(principalId: string): Promise<ProjectMembership[]>;
 }
 
 export async function authorizeProjectCapability(
@@ -55,6 +56,13 @@ export class InMemoryMembershipRepository implements MembershipRepository {
       (item) => item.projectId === projectId && item.principalId === principalId,
     );
     return membership ? structuredClone(membership) : null;
+  }
+
+  async listByPrincipal(principalId: string): Promise<ProjectMembership[]> {
+    return this.memberships
+      .filter((item) => item.principalId === principalId)
+      .map((item) => structuredClone(item))
+      .sort((left, right) => left.projectId.localeCompare(right.projectId));
   }
 
   add(membership: ProjectMembership): void {
