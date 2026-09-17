@@ -6,9 +6,9 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-22 bounded YouTube publish preflight is complete: authenticated users can validate one target/asset/caption/schedule without enqueueing a publish job",
-    "real publish enqueue remains locked behind explicit publish approval plus VID-12 live-provider verification; the next product slice after verification is controlled publish action and status UX",
-    "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
+    "VID-23 runtime config boundary and fake publisher are in progress so the approved publish loop can be exercised end to end without external credentials while production remains fail-closed",
+    "finish MVP end-to-end behavior before production credential/config rollout; add config contracts/defaults only when the active vertical slice requires them",
+    "real publish launch remains gated by VID-12; do not use fake publishing as a production fallback or start a second provider before YouTube verification"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
   "completedCapabilities": [
@@ -43,7 +43,7 @@
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
     "controlled end-user publish enqueue remains locked until the first live YouTube path is verified or explicitly waived"
   ],
-  "nextTasks": ["VID-12", "VID-5"],
+  "nextTasks": ["VID-23", "VID-12", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
