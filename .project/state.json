@@ -6,8 +6,8 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-20 bounded authenticated media-job creation is in progress as the first user-facing product mutation; keep asset.write and asset/project isolation authoritative in VideoOsApi",
-    "publish mutation remains locked behind explicit publish approval plus the existing VID-12 YouTube live-verification gate",
+    "VID-20 bounded authenticated media-job creation is complete; end users can now queue a fixed project-scoped 720p proxy transform through the product UI without raw worker/FFmpeg access",
+    "next launch decision is controlled publish action after explicit YouTube live verification, not broader infrastructure or another publishing provider",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
@@ -34,13 +34,14 @@
     "optional protected alpha access using bounded HMAC-signed HttpOnly sessions with fail-closed non-loopback binding",
     "principal-scoped project membership discovery with in-memory/PostgreSQL adapters and project-authorized product read models for projects, assets, and job status",
     "read-only authenticated product BFF with per-user access-code exchange, signed principal sessions, and project-scoped project/assets/job endpoints",
-    "same-origin user-facing product read UI for login, project memberships, project assets and job lookup behind the authenticated BFF"
+    "same-origin user-facing product read UI for login, project memberships, project assets and job lookup behind the authenticated BFF",
+    "bounded authenticated media-job creation with strict transform validation plus fixed 720p proxy action in the product UI"
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
-    "full non-operator product launch still requires bounded authenticated product actions and controlled publishing after provider verification"
+    "controlled end-user publishing should not be exposed until the first live YouTube path is verified or explicitly waived"
   ],
-  "nextTasks": ["VID-12", "VID-20", "VID-5"],
+  "nextTasks": ["VID-12", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
