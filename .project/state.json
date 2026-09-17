@@ -6,8 +6,8 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-18 authenticated product BFF is complete; next launch slice is VID-19 user-facing login/project/assets/job views on top of the same BFF",
-    "project membership/capability remains authoritative below transport identity; do not bypass VideoOsApi from browser code",
+    "VID-19 user-facing product read views are in progress on top of the authenticated product BFF; keep browser traffic same-origin and keep project authorization in VideoOsApi",
+    "after VID-19, prioritize bounded project/media/publish actions required for evaluation rather than additional infrastructure breadth",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
