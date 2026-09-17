@@ -32,6 +32,14 @@ export interface CreatePublishCommand {
   approval?: PublishApprovalRecord;
 }
 
+export interface PublishPreflightView {
+  projectId: string;
+  assetCount: number;
+  targetCount: number;
+  scheduled: boolean;
+  approvalRequired: true;
+}
+
 export interface MediaJobPayload {
   projectId: string;
   assetId: string;
@@ -84,13 +92,25 @@ export class VideoOsApi {
     return view;
   }
 
-  async createPublish(command: CreatePublishCommand): Promise<{ jobId: string }> {
+  async preflightPublish(principal: Principal, request: PublishRequest): Promise<PublishPreflightView> {
     await authorizeProjectCapability(
       this.dependencies.memberships,
-      command.principal,
-      command.request.projectId,
+      principal,
+      request.projectId,
       'publish.create',
     );
+    await this.validatePublishRequest(request);
+    return {
+      projectId: request.projectId,
+      assetCount: request.assets.length,
+      targetCount: request.targets.length,
+      scheduled: Boolean(request.scheduledAt),
+      approvalRequired: true,
+    };
+  }
+
+  async createPublish(command: CreatePublishCommand): Promise<{ jobId: string }> {
+    await this.preflightPublish(command.principal, command.request);
 
     if (!command.approval) throw new Error('publish approval required');
     await authorizeProjectCapability(
@@ -101,16 +121,6 @@ export class VideoOsApi {
     );
 
     if (!isValidIsoDateTime(command.approval.approvedAt)) throw new Error('publish approval timestamp is invalid');
-    if (command.request.scheduledAt && !isValidIsoDateTime(command.request.scheduledAt)) {
-      throw new Error('publish scheduledAt is invalid');
-    }
-
-    for (const asset of command.request.assets) {
-      const record = await this.dependencies.assets.getById(asset.assetId);
-      if (!record || record.projectId !== command.request.projectId) {
-        throw new Error('publish asset not found in project');
-      }
-    }
 
     const jobId = `publish:${command.request.projectId}:${command.request.idempotencyKey}`;
     const payload: PublishJobPayload = {
@@ -143,6 +153,19 @@ export class VideoOsApi {
     };
     await this.dependencies.jobs.enqueue('media', command.jobId, payload);
     return { jobId: command.jobId };
+  }
+
+  private async validatePublishRequest(request: PublishRequest): Promise<void> {
+    if (request.scheduledAt && !isValidIsoDateTime(request.scheduledAt)) {
+      throw new Error('publish scheduledAt is invalid');
+    }
+
+    for (const asset of request.assets) {
+      const record = await this.dependencies.assets.getById(asset.assetId);
+      if (!record || record.projectId !== request.projectId) {
+        throw new Error('publish asset not found in project');
+      }
+    }
   }
 }
 
