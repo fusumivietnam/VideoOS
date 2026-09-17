@@ -11,6 +11,26 @@ VideoOS is a modular control plane for creating, orchestrating, publishing, obse
 - **Local + cloud execution**: workloads can run in web/cloud services or trusted local worker nodes.
 - **Contract-first evolution**: cross-service schemas are versioned and backward-compatible.
 
+## MVP UI quick start
+
+From a fresh checkout after dependencies are installed:
+
+```bash
+pnpm mvp:ui
+```
+
+Then open `http://127.0.0.1:3000/product.html` and sign in with the local demo access code printed by the launcher. The default code is `videoos-local-demo` unless `VIDEOOS_MVP_ACCESS_CODE` is set.
+
+The launcher is intentionally local-only and uses the deterministic fake publisher. It seeds `project:demo` with one video asset so the product UI can exercise project discovery, asset browsing, 720p media-job queueing, publish preflight, explicit fake publish dry-run, and job status without external credentials or provider side effects.
+
+Real YouTube publishing remains gated by VID-12 live provider verification; the local fake dry-run is not a production fallback.
+
+For a non-UI repository smoke:
+
+```bash
+pnpm mvp:smoke
+```
+
 ## Project navigation
 
 - `docs/architecture/system.md` — system map and boundaries.
