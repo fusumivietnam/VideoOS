@@ -25,8 +25,9 @@ const auth: ProductAuthConfig = {
 const runtime = createInMemoryRuntime({
   memberships: [{ projectId: 'project:demo', principalId: principal.id, role: 'owner' }],
   mediaExecutor: {
-    async execute(_request, context) {
-      return { assetId: `${context.jobId}:output`, uri: `memory://${context.jobId}.mp4` };
+    async execute(plan) {
+      const jobId = plan.context?.jobId ?? `media:${plan.sourceAssetId}`;
+      return { assetId: `${jobId}:output`, uri: `memory://${encodeURIComponent(jobId)}.mp4` };
     },
   },
   publisherAdapters: composePublisherAdapters(config),
