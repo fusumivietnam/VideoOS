@@ -15,6 +15,7 @@
     "alpha:down": "docker compose -f infra/compose.alpha.yml down",
     "alpha:logs": "docker compose -f infra/compose.alpha.yml logs -f --tail=200 web",
     "mvp:smoke": "pnpm --filter @videoos/local-runtime mvp:smoke",
+    "mvp:ui": "node tooling/mvp-ui.mjs",
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test && node --test apps/web/test/*.test.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
