@@ -6,8 +6,8 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-17 adds the project-scoped product read model required before wiring authenticated user-facing BFF endpoints",
-    "controlled alpha packaging and shared signed-session access are complete; do not mistake the shared alpha gate for project-scoped product identity",
+    "VID-17 project-scoped membership discovery/read-model is complete; next launch slice is VID-18 authenticated BFF endpoints and user-facing project/assets/job views",
+    "controlled alpha packaging and shared signed-session access are complete; keep shared alpha access separate from project-scoped product identity",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
@@ -31,13 +31,14 @@
     "repository-owned controlled launch readiness command and runbook",
     "dependency-free read-only web launch cockpit deriving readiness only from canonical repository state",
     "localhost-only non-root read-only controlled-alpha container packaging with simple operator lifecycle commands",
-    "optional protected alpha access using bounded HMAC-signed HttpOnly sessions with fail-closed non-loopback binding"
+    "optional protected alpha access using bounded HMAC-signed HttpOnly sessions with fail-closed non-loopback binding",
+    "principal-scoped project membership discovery with in-memory/PostgreSQL adapters and project-authorized product read models for projects, assets, and job status"
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
-    "full non-operator product launch still requires project-scoped authenticated BFF/product actions after VID-17; VID-16 is only a shared alpha access gate"
+    "full non-operator product launch still requires VID-18 authenticated BFF/product views and subsequent bounded product actions"
   ],
-  "nextTasks": ["VID-12", "VID-17", "VID-5"],
+  "nextTasks": ["VID-12", "VID-18", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
