@@ -6,8 +6,8 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-17 project-scoped membership discovery/read-model is complete; next launch slice is VID-18 authenticated BFF endpoints and user-facing project/assets/job views",
-    "controlled alpha packaging and shared signed-session access are complete; keep shared alpha access separate from project-scoped product identity",
+    "VID-18 authenticated product BFF is complete; next launch slice is VID-19 user-facing login/project/assets/job views on top of the same BFF",
+    "project membership/capability remains authoritative below transport identity; do not bypass VideoOsApi from browser code",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
@@ -32,13 +32,14 @@
     "dependency-free read-only web launch cockpit deriving readiness only from canonical repository state",
     "localhost-only non-root read-only controlled-alpha container packaging with simple operator lifecycle commands",
     "optional protected alpha access using bounded HMAC-signed HttpOnly sessions with fail-closed non-loopback binding",
-    "principal-scoped project membership discovery with in-memory/PostgreSQL adapters and project-authorized product read models for projects, assets, and job status"
+    "principal-scoped project membership discovery with in-memory/PostgreSQL adapters and project-authorized product read models for projects, assets, and job status",
+    "read-only authenticated product BFF with per-user access-code exchange, signed principal sessions, and project-scoped project/assets/job endpoints"
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
-    "full non-operator product launch still requires VID-18 authenticated BFF/product views and subsequent bounded product actions"
+    "full non-operator product launch still requires VID-19 user-facing product views and subsequent bounded create/publish actions"
   ],
-  "nextTasks": ["VID-12", "VID-18", "VID-5"],
+  "nextTasks": ["VID-12", "VID-19", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
