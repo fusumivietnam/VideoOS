@@ -1,7 +1,7 @@
 ---
 id: VID-25
 title: Add one-command MVP product UI dry-run
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-17 20:32'
 labels: [m4, mvp, ui, publishing, launch]
@@ -27,5 +27,5 @@ The UI may enqueue publish only in explicit fake mode. Production/default YouTub
 - [x] #6 Dry-run result is linked to the normal project-scoped job status flow and reports no external provider side effect.
 - [x] #7 Product job polling recognizes canonical queue terminal status `completed`.
 - [x] #8 Production real publish enqueue remains unavailable and VID-12 remains the launch gate.
-- [ ] #9 Exact-head CI passes architecture, typecheck and workspace tests.
+- [x] #9 Exact-head CI #194 passes architecture, typecheck and workspace tests.
 - [x] #10 No provider expansion, database migration, runtime dependency, lockfile or GitHub Actions workflow is introduced.
