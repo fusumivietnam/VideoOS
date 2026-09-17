@@ -49,10 +49,16 @@ async function fixture() {
   return { server, base: `http://127.0.0.1:${address.port}` };
 }
 
+function firstCookie(value: string): string {
+  const cookie = value.split(';')[0];
+  if (!cookie) throw new Error('empty cookie');
+  return cookie;
+}
+
 function cookieFrom(response: Response): string {
   const setCookie = response.headers.get('set-cookie');
   if (!setCookie) throw new Error('missing set-cookie');
-  return setCookie.split(';')[0];
+  return firstCookie(setCookie);
 }
 
 async function login(base: string, accessCode: string): Promise<string> {
@@ -131,12 +137,13 @@ test('tampered and expired product sessions are rejected', async (t) => {
   t.after(() => server.close());
 
   const token = issueProductSession('user:a', auth, Date.now());
-  const validCookie = productSessionCookie(token, auth).split(';')[0];
+  const validCookie = firstCookie(productSessionCookie(token, auth));
   const tamperedCookie = `${validCookie.slice(0, -1)}x`;
   assert.equal((await fetch(`${base}/api/product/me/projects`, { headers: { cookie: tamperedCookie } })).status, 401);
 
   const expired = issueProductSession('user:a', auth, Date.now() - (auth.ttlSeconds + 1) * 1000);
+  const expiredCookie = firstCookie(productSessionCookie(expired, auth));
   assert.equal((await fetch(`${base}/api/product/me/projects`, {
-    headers: { cookie: productSessionCookie(expired, auth).split(';')[0] },
+    headers: { cookie: expiredCookie },
   })).status, 401);
 });
