@@ -6,9 +6,9 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-23 runtime config boundary and fake publisher are in progress so the approved publish loop can be exercised end to end without external credentials while production remains fail-closed",
-    "finish MVP end-to-end behavior before production credential/config rollout; add config contracts/defaults only when the active vertical slice requires them",
-    "real publish launch remains gated by VID-12; do not use fake publishing as a production fallback or start a second provider before YouTube verification"
+    "VID-23 runtime config boundary and deterministic fake publisher are complete and merged; local/test can exercise the approved publish loop end to end while production remains fail-closed to explicit YouTube composition",
+    "VID-24 MVP smoke command is in progress so one repository-owned command can validate project asset -> preflight -> approval -> publish queue -> worker -> terminal completion without external credentials",
+    "finish MVP end-to-end behavior before production credential rollout; real publish launch remains gated by VID-12 and fake publishing must never become a production fallback"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
   "completedCapabilities": [
@@ -37,13 +37,14 @@
     "same-origin user-facing product read UI for login, project memberships, project assets and job lookup behind the authenticated BFF",
     "bounded authenticated media-job creation with strict transform validation plus fixed 720p proxy action in the product UI",
     "bounded automatic media-job tracking with terminal-state handling and authorized asset refresh in the product UI",
-    "bounded YouTube publish preflight reusing canonical publish validation and explicitly preventing enqueue before provider verification"
+    "bounded YouTube publish preflight reusing canonical publish validation and explicitly preventing enqueue before provider verification",
+    "typed fail-fast runtime config boundary with deterministic local/test fake publisher and production YouTube fail-closed composition"
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
     "controlled end-user publish enqueue remains locked until the first live YouTube path is verified or explicitly waived"
   ],
-  "nextTasks": ["VID-23", "VID-12", "VID-5"],
+  "nextTasks": ["VID-24", "VID-12", "VID-5"],
   "canonicalSources": {
     "roadmap": "docs/roadmap.md",
     "tasks": "backlog/tasks",
