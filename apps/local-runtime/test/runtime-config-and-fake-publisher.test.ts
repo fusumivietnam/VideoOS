@@ -80,7 +80,7 @@ test('approved publish job completes end to end through the fake publisher witho
   });
 
   const before = await runtime.jobs.get(result.jobId);
-  assert.equal(before?.status, 'queued');
+  assert.equal(before?.status, 'ready');
 
   const ran = await runtime.runPublishOnce();
   assert.equal(ran, true);
