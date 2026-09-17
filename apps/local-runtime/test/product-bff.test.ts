@@ -46,7 +46,7 @@ async function fixture() {
   await once(server, 'listening');
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('test server address unavailable');
-  return { server, base: `http://127.0.0.1:${address.port}` };
+  return { server, base: `http://127.0.0.1:${address.port}`, jobs };
 }
 
 function firstCookie(value: string): string {
@@ -69,6 +69,17 @@ async function login(base: string, accessCode: string): Promise<string> {
   });
   assert.equal(response.status, 200);
   return cookieFrom(response);
+}
+
+function mediaJobBody(assetId: string, jobId: string) {
+  return {
+    assetId,
+    jobId,
+    transform: {
+      operations: [{ type: 'resize', width: 1280, height: 720, fit: 'contain' }],
+      output: { container: 'mp4', videoCodec: 'h264', audioCodec: 'aac', width: 1280, height: 720, fps: 30 },
+    },
+  };
 }
 
 test('product auth config fails closed on partial config and validates identities', () => {
@@ -130,6 +141,67 @@ test('assets and jobs preserve project authorization and cross-project isolation
   const foreignJobId = await fetch(`${base}/api/product/projects/project%3Aa/jobs/job%3Ab`, { headers: { cookie } });
   assert.equal(foreignJobId.status, 200);
   assert.equal(((await foreignJobId.json()) as { job: unknown }).job, null);
+});
+
+test('owner can create a bounded project-scoped media job', async (t) => {
+  const { server, base, jobs } = await fixture();
+  t.after(() => server.close());
+  const cookie = await login(base, 'alpha-user-a-secret');
+
+  const response = await fetch(`${base}/api/product/projects/project%3Aa/media-jobs`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify(mediaJobBody('asset:a', 'job:new')),
+  });
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), { jobId: 'job:new' });
+  const queued = await jobs.get<{ projectId: string; assetId: string }>('job:new');
+  assert.equal(queued?.queue, 'media');
+  assert.equal(queued?.payload.projectId, 'project:a');
+  assert.equal(queued?.payload.assetId, 'asset:a');
+});
+
+test('media mutation preserves capability and asset project boundaries', async (t) => {
+  const { server, base } = await fixture();
+  t.after(() => server.close());
+
+  const viewerCookie = await login(base, 'alpha-user-b-secret');
+  const viewerAttempt = await fetch(`${base}/api/product/projects/project%3Ab/media-jobs`, {
+    method: 'POST',
+    headers: { cookie: viewerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify(mediaJobBody('asset:b', 'job:viewer')),
+  });
+  assert.equal(viewerAttempt.status, 403);
+
+  const ownerCookie = await login(base, 'alpha-user-a-secret');
+  const crossProjectAsset = await fetch(`${base}/api/product/projects/project%3Aa/media-jobs`, {
+    method: 'POST',
+    headers: { cookie: ownerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify(mediaJobBody('asset:b', 'job:cross')),
+  });
+  assert.equal(crossProjectAsset.status, 404);
+});
+
+test('media mutation rejects malformed or unbounded transforms', async (t) => {
+  const { server, base } = await fixture();
+  t.after(() => server.close());
+  const cookie = await login(base, 'alpha-user-a-secret');
+
+  const tooLarge = mediaJobBody('asset:a', 'job:bad');
+  tooLarge.transform.output.width = 100_000;
+  assert.equal((await fetch(`${base}/api/product/projects/project%3Aa/media-jobs`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify(tooLarge),
+  })).status, 400);
+
+  const unsafeCodec = mediaJobBody('asset:a', 'job:bad2');
+  unsafeCodec.transform.output.videoCodec = 'h264 -i /etc/passwd';
+  assert.equal((await fetch(`${base}/api/product/projects/project%3Aa/media-jobs`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify(unsafeCodec),
+  })).status, 400);
 });
 
 test('tampered and expired product sessions are rejected', async (t) => {
