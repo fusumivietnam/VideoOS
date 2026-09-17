@@ -14,10 +14,18 @@ const jobIdInput = document.querySelector('#job-id');
 const jobPollingNode = document.querySelector('#job-polling');
 const refreshAssetsButton = document.querySelector('#refresh-assets');
 const jobResult = document.querySelector('#job-result');
+const publishPreflightForm = document.querySelector('#publish-preflight-form');
+const publishAssetInput = document.querySelector('#publish-asset');
+const publishAccountInput = document.querySelector('#publish-account');
+const publishCaptionInput = document.querySelector('#publish-caption');
+const publishScheduleInput = document.querySelector('#publish-schedule');
+const publishPreflightButton = document.querySelector('#publish-preflight-button');
+const publishPreflightResult = document.querySelector('#publish-preflight-result');
 
 const JOB_POLL_INTERVAL_MS = 1500;
 const JOB_POLL_MAX_ATTEMPTS = 40;
 let selectedProject = null;
+let currentAssets = [];
 let activePollToken = 0;
 
 loginForm.addEventListener('submit', async (event) => {
@@ -58,6 +66,51 @@ jobForm.addEventListener('submit', async (event) => {
 refreshAssetsButton.addEventListener('click', async () => {
   if (!selectedProject) return;
   await loadAssets(selectedProject.projectId);
+});
+
+publishPreflightForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!selectedProject) {
+    publishPreflightResult.textContent = 'Select a project first.';
+    return;
+  }
+  const asset = currentAssets.find((item) => item.id === publishAssetInput.value);
+  if (!asset) {
+    publishPreflightResult.textContent = 'Select a video asset.';
+    return;
+  }
+  publishPreflightButton.disabled = true;
+  publishPreflightButton.textContent = 'Checking…';
+  publishPreflightResult.textContent = 'Validating publish request…';
+  try {
+    const payload = {
+      assetId: asset.id,
+      accountId: publishAccountInput.value.trim(),
+      idempotencyKey: `web-${crypto.randomUUID()}`,
+      mimeType: asset.contentType,
+      caption: publishCaptionInput.value,
+    };
+    if (publishScheduleInput.value) payload.scheduledAt = new Date(publishScheduleInput.value).toISOString();
+    const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/publish-preflight`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 401) return showLogin();
+    if (response.status === 403) throw new Error('Your role cannot create publish requests.');
+    if (response.status === 404) throw new Error('The selected asset is no longer available in this project.');
+    if (!response.ok) throw new Error(`Publish preflight failed (${response.status}).`);
+    const result = await response.json();
+    publishPreflightResult.textContent = JSON.stringify({
+      ...result,
+      message: 'Preflight passed. Publishing is still locked pending approval and live YouTube verification.',
+    }, null, 2);
+  } catch (error) {
+    publishPreflightResult.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    publishPreflightButton.disabled = false;
+    publishPreflightButton.textContent = 'Run preflight';
+  }
 });
 
 await loadProjects();
@@ -101,15 +154,18 @@ async function loadProjects() {
 async function selectProject(project, button) {
   stopPolling();
   selectedProject = project;
+  currentAssets = [];
   for (const row of projectsNode.querySelectorAll('.project-row')) row.classList.toggle('active', row === button);
   selectedProjectNode.textContent = project.projectId;
   selectedRoleNode.textContent = `Role: ${project.role}`;
   workflowStatusNode.textContent = ['owner', 'admin', 'editor'].includes(project.role)
-    ? 'Media processing enabled. Publishing remains gated.'
+    ? 'Media processing enabled. YouTube publish preflight available; publishing remains gated.'
     : 'Read access only for this role.';
   jobResult.textContent = 'No job selected.';
   jobPollingNode.textContent = 'Manual lookup until a job is queued.';
+  publishPreflightResult.textContent = 'No preflight run yet.';
   refreshAssetsButton.disabled = false;
+  populatePublishAssets([]);
   await loadAssets(project.projectId);
 }
 
@@ -126,7 +182,25 @@ async function loadAssets(projectId) {
     return;
   }
   const payload = await response.json();
-  renderAssets(payload.assets);
+  currentAssets = payload.assets;
+  renderAssets(currentAssets);
+  populatePublishAssets(currentAssets);
+}
+
+function populatePublishAssets(assets) {
+  const videos = assets.filter((asset) => asset.contentType?.startsWith('video/'));
+  publishAssetInput.replaceChildren();
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = videos.length ? 'Select video asset' : 'No video assets available';
+  publishAssetInput.append(placeholder);
+  for (const asset of videos) {
+    const option = document.createElement('option');
+    option.value = asset.id;
+    option.textContent = `${asset.id} · ${asset.contentType}`;
+    publishAssetInput.append(option);
+  }
+  publishAssetInput.disabled = videos.length === 0;
 }
 
 function renderAssets(assets) {
@@ -254,6 +328,7 @@ function stopPolling() {
 function showLogin(message = '') {
   stopPolling();
   selectedProject = null;
+  currentAssets = [];
   loginCard.hidden = false;
   workspace.hidden = true;
   logoutButton.hidden = true;
