@@ -65,14 +65,14 @@ export function createProductBffServer(api: VideoOsApi, auth: ProductAuthConfig)
       }
 
       const assetsMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/assets$/);
-      if (method === 'GET' && assetsMatch) {
+      if (method === 'GET' && assetsMatch?.[1]) {
         const projectId = decodeBoundedId(assetsMatch[1]);
         sendJson(response, 200, { projectId, assets: await api.listAssets(principal, projectId) });
         return;
       }
 
       const jobMatch = url.pathname.match(/^\/api\/product\/projects\/([^/]+)\/jobs\/([^/]+)$/);
-      if (method === 'GET' && jobMatch) {
+      if (method === 'GET' && jobMatch?.[1] && jobMatch?.[2]) {
         const projectId = decodeBoundedId(jobMatch[1]);
         const jobId = decodeBoundedId(jobMatch[2]);
         sendJson(response, 200, { projectId, job: await api.getJobStatus(principal, projectId, jobId) });
