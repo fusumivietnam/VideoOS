@@ -20,13 +20,18 @@ const publishAccountInput = document.querySelector('#publish-account');
 const publishCaptionInput = document.querySelector('#publish-caption');
 const publishScheduleInput = document.querySelector('#publish-schedule');
 const publishPreflightButton = document.querySelector('#publish-preflight-button');
+const publishDryRunButton = document.querySelector('#publish-dry-run-button');
+const publishRuntimeMode = document.querySelector('#publish-runtime-mode');
 const publishPreflightResult = document.querySelector('#publish-preflight-result');
 
 const JOB_POLL_INTERVAL_MS = 1500;
 const JOB_POLL_MAX_ATTEMPTS = 40;
+const TERMINAL_JOB_STATUSES = new Set(['completed', 'failed', 'dead-letter', 'cancelled']);
 let selectedProject = null;
 let currentAssets = [];
 let activePollToken = 0;
+let runtimeInfo = { publisherDriver: 'youtube', dryRunPublishEnabled: false };
+let lastPreflightPayload = null;
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -80,17 +85,11 @@ publishPreflightForm.addEventListener('submit', async (event) => {
     return;
   }
   publishPreflightButton.disabled = true;
+  publishDryRunButton.disabled = true;
   publishPreflightButton.textContent = 'Checking…';
   publishPreflightResult.textContent = 'Validating publish request…';
   try {
-    const payload = {
-      assetId: asset.id,
-      accountId: publishAccountInput.value.trim(),
-      idempotencyKey: `web-${crypto.randomUUID()}`,
-      mimeType: asset.contentType,
-      caption: publishCaptionInput.value,
-    };
-    if (publishScheduleInput.value) payload.scheduledAt = new Date(publishScheduleInput.value).toISOString();
+    const payload = buildPublishPayload(asset);
     const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/publish-preflight`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -101,15 +100,56 @@ publishPreflightForm.addEventListener('submit', async (event) => {
     if (response.status === 404) throw new Error('The selected asset is no longer available in this project.');
     if (!response.ok) throw new Error(`Publish preflight failed (${response.status}).`);
     const result = await response.json();
+    lastPreflightPayload = payload;
+    publishDryRunButton.disabled = !runtimeInfo.dryRunPublishEnabled;
     publishPreflightResult.textContent = JSON.stringify({
       ...result,
-      message: 'Preflight passed. Publishing is still locked pending approval and live YouTube verification.',
+      message: runtimeInfo.dryRunPublishEnabled
+        ? 'Preflight passed. Fake-mode dry-run is available; no external provider side effect will occur.'
+        : 'Preflight passed. Real publishing remains locked pending live YouTube verification.',
     }, null, 2);
   } catch (error) {
+    lastPreflightPayload = null;
     publishPreflightResult.textContent = error instanceof Error ? error.message : String(error);
   } finally {
     publishPreflightButton.disabled = false;
     publishPreflightButton.textContent = 'Run preflight';
+  }
+});
+
+publishDryRunButton.addEventListener('click', async () => {
+  if (!selectedProject || !lastPreflightPayload || !runtimeInfo.dryRunPublishEnabled) return;
+  publishDryRunButton.disabled = true;
+  publishDryRunButton.textContent = 'Running dry-run…';
+  publishPreflightResult.textContent = 'Queueing approved fake publish and running one publisher worker iteration…';
+  try {
+    const payload = {
+      ...lastPreflightPayload,
+      idempotencyKey: `web-dry-run-${crypto.randomUUID()}`,
+      confirmed: true,
+    };
+    const response = await api(`/api/product/projects/${encodeURIComponent(selectedProject.projectId)}/publish-dry-run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 401) return showLogin();
+    if (response.status === 403) throw new Error('Your role cannot approve this dry-run publish.');
+    if (response.status === 423) throw new Error('Dry-run publish is locked because this runtime is not using the fake publisher.');
+    if (!response.ok) throw new Error(`Publish dry-run failed (${response.status}).`);
+    const result = await response.json();
+    jobIdInput.value = result.jobId;
+    publishPreflightResult.textContent = JSON.stringify({
+      ...result,
+      message: 'Fake publish completed without an external provider side effect.',
+    }, null, 2);
+    workflowStatusNode.textContent = 'Fake publish dry-run executed. Tracking terminal job state.';
+    await pollJob(result.jobId);
+  } catch (error) {
+    publishPreflightResult.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    publishDryRunButton.disabled = !runtimeInfo.dryRunPublishEnabled || !lastPreflightPayload;
+    publishDryRunButton.textContent = 'Run fake publish dry-run';
   }
 });
 
@@ -128,6 +168,7 @@ async function loadProjects() {
   workspace.hidden = false;
   logoutButton.hidden = false;
   projectsNode.replaceChildren();
+  await loadRuntimeInfo();
 
   if (!payload.projects.length) {
     const empty = document.createElement('p');
@@ -151,15 +192,41 @@ async function loadProjects() {
   if (firstButton) firstButton.click();
 }
 
+async function loadRuntimeInfo() {
+  const response = await api('/api/product/runtime');
+  if (response.status === 401) return showLogin();
+  if (!response.ok) {
+    runtimeInfo = { publisherDriver: 'youtube', dryRunPublishEnabled: false };
+    publishRuntimeMode.textContent = 'Unable to read runtime publish mode. Dry-run remains locked.';
+    publishDryRunButton.hidden = true;
+    publishDryRunButton.disabled = true;
+    return;
+  }
+  runtimeInfo = await response.json();
+  if (runtimeInfo.dryRunPublishEnabled) {
+    publishRuntimeMode.textContent = 'Runtime publisher: fake · safe dry-run enabled · no external provider side effect.';
+    publishDryRunButton.hidden = false;
+    publishDryRunButton.disabled = !lastPreflightPayload;
+  } else {
+    publishRuntimeMode.textContent = `Runtime publisher: ${runtimeInfo.publisherDriver} · real publish enqueue remains locked.`;
+    publishDryRunButton.hidden = true;
+    publishDryRunButton.disabled = true;
+  }
+}
+
 async function selectProject(project, button) {
   stopPolling();
   selectedProject = project;
   currentAssets = [];
+  lastPreflightPayload = null;
+  publishDryRunButton.disabled = true;
   for (const row of projectsNode.querySelectorAll('.project-row')) row.classList.toggle('active', row === button);
   selectedProjectNode.textContent = project.projectId;
   selectedRoleNode.textContent = `Role: ${project.role}`;
   workflowStatusNode.textContent = ['owner', 'admin', 'editor'].includes(project.role)
-    ? 'Media processing enabled. YouTube publish preflight available; publishing remains gated.'
+    ? runtimeInfo.dryRunPublishEnabled
+      ? 'Media processing and fake publish dry-run enabled. Real provider publishing remains gated.'
+      : 'Media processing enabled. YouTube publish preflight available; real publishing remains gated.'
     : 'Read access only for this role.';
   jobResult.textContent = 'No job selected.';
   jobPollingNode.textContent = 'Manual lookup until a job is queued.';
@@ -286,12 +353,13 @@ async function pollJob(jobId) {
   for (let attempt = 1; attempt <= JOB_POLL_MAX_ATTEMPTS && token === activePollToken; attempt += 1) {
     const job = await loadJob(jobId);
     if (!job || token !== activePollToken) return;
-    if (['succeeded', 'failed', 'cancelled'].includes(job.status)) {
+    if (TERMINAL_JOB_STATUSES.has(job.status)) {
       jobPollingNode.textContent = `Finished with status: ${job.status}`;
-      workflowStatusNode.textContent = job.status === 'succeeded'
-        ? 'Media processing completed. Assets refreshed.'
-        : `Media processing ${job.status}.`;
-      if (job.status === 'succeeded' && selectedProject) await loadAssets(selectedProject.projectId);
+      const completed = job.status === 'completed';
+      workflowStatusNode.textContent = completed
+        ? 'Job completed. Project state refreshed.'
+        : `Job ${job.status}.`;
+      if (completed && selectedProject) await loadAssets(selectedProject.projectId);
       return;
     }
     jobPollingNode.textContent = `Tracking job · ${job.status} · check ${attempt}/${JOB_POLL_MAX_ATTEMPTS}`;
@@ -321,6 +389,18 @@ async function loadJob(jobId) {
   return payload.job ?? null;
 }
 
+function buildPublishPayload(asset) {
+  const payload = {
+    assetId: asset.id,
+    accountId: publishAccountInput.value.trim(),
+    idempotencyKey: `web-${crypto.randomUUID()}`,
+    mimeType: asset.contentType,
+    caption: publishCaptionInput.value,
+  };
+  if (publishScheduleInput.value) payload.scheduledAt = new Date(publishScheduleInput.value).toISOString();
+  return payload;
+}
+
 function stopPolling() {
   activePollToken += 1;
 }
@@ -329,9 +409,13 @@ function showLogin(message = '') {
   stopPolling();
   selectedProject = null;
   currentAssets = [];
+  lastPreflightPayload = null;
+  runtimeInfo = { publisherDriver: 'youtube', dryRunPublishEnabled: false };
   loginCard.hidden = false;
   workspace.hidden = true;
   logoutButton.hidden = true;
+  publishDryRunButton.hidden = true;
+  publishDryRunButton.disabled = true;
   loginError.textContent = message;
 }
 
