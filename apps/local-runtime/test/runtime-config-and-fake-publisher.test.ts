@@ -91,6 +91,6 @@ test('approved publish job completes end to end through the fake publisher witho
   });
 
   const after = await runtime.jobs.get(result.jobId);
-  assert.equal(after?.status, 'succeeded');
+  assert.equal(after?.status, 'completed');
   assert.equal(after?.attempts, 1);
 });
