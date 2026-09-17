@@ -6,8 +6,8 @@
   "status": "active",
   "currentFocus": [
     "VID-12 OAuth onboarding/refresh and manual live-smoke implementation is merged; complete explicit real YouTube private-upload/reconciliation verification before treating publishing as launch-verified",
-    "VID-19 user-facing product read views are complete with same-origin product BFF proxying; browser code remains isolated from persistence/provider implementations",
-    "next launch slice is bounded authenticated product actions for evaluation, starting with project-scoped media job creation before publish mutation",
+    "VID-20 bounded authenticated media-job creation is in progress as the first user-facing product mutation; keep asset.write and asset/project isolation authoritative in VideoOsApi",
+    "publish mutation remains locked behind explicit publish approval plus the existing VID-12 YouTube live-verification gate",
     "do not start a second publishing provider until the first live YouTube path is verified or explicitly waived by a recorded decision"
   ],
   "completedMilestones": ["M0", "M1", "M2", "M3"],
@@ -38,7 +38,7 @@
   ],
   "blockers": [
     "VID-12 real YouTube private-upload/reconciliation smoke has not yet been recorded as verified",
-    "full non-operator product launch still requires bounded authenticated product actions for creating media work and controlled publishing"
+    "full non-operator product launch still requires bounded authenticated product actions and controlled publishing after provider verification"
   ],
   "nextTasks": ["VID-12", "VID-20", "VID-5"],
   "canonicalSources": {
