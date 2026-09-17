@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">VideoOS · product alpha</p>
         <h1>Your projects</h1>
-        <p class="lede">Authenticated project-scoped access to assets and job status. Read-only in this launch slice.</p>
+        <p class="lede">Authenticated project-scoped access to media, processing actions, and job status. Publishing remains locked until provider verification is complete.</p>
       </div>
       <button id="logout" class="secondary-button" type="button" hidden>Sign out</button>
     </header>
@@ -39,6 +39,7 @@
           <p class="eyebrow">Selected project</p>
           <h2 id="selected-project">Choose a project</h2>
           <p id="selected-role" class="muted">—</p>
+          <p id="workflow-status" class="workflow-status">Select a project to begin.</p>
         </article>
       </section>
 
@@ -47,18 +48,23 @@
           <div>
             <p class="eyebrow">Assets</p>
             <h2>Project media</h2>
+            <p class="muted">Editors can queue a bounded 720p proxy job for video assets.</p>
           </div>
         </div>
         <div id="assets" class="table-wrap"><p class="muted">Select a project.</p></div>
       </section>
 
       <section class="card product-job-card">
-        <p class="eyebrow">Job lookup</p>
-        <h2>Check processing status</h2>
+        <p class="eyebrow">Processing</p>
+        <h2>Job status</h2>
         <form id="job-form" class="inline-form">
           <input id="job-id" name="jobId" placeholder="job id" maxlength="256" required>
           <button type="submit">Check job</button>
         </form>
+        <div class="job-toolbar">
+          <span id="job-polling" class="muted">Manual lookup until a job is queued.</span>
+          <button id="refresh-assets" type="button" class="secondary-button" disabled>Refresh assets</button>
+        </div>
         <pre id="job-result" class="job-result">No job selected.</pre>
       </section>
     </section>
